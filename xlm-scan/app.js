@@ -1,7 +1,7 @@
 'use strict';
 /* XLM Scan — quét tài liệu cho Công ty Xây lắp Mỏ – TKV
    Dữ liệu chỉ nằm trên máy (IndexedDB). */
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '2.0.0';
 const SUPPORT_PHONE = '0396228768';
 
 /* =========================================================== tiện ích */
@@ -75,6 +75,24 @@ const IC = {
   right: '<path d="M9 18l6-6-6-6"/>',
   doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
   zoom: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
+  sort: '<path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  word: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 12l1.5 6 2.5-5 2.5 5 1.5-6"/>',
+  excel: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+  ppt: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4M8 21h8M9 14V8h3a2 2 0 0 1 0 4H9"/>',
+  pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 17v-4h1.5a1.5 1.5 0 0 1 0 3H8M13 13v4M13 13h2M13 15h1.5"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
+  passport: '<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M9 17h6"/>',
+  person: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M7 19c1-2.5 3-3.5 5-3.5s4 1 5 3.5"/>',
+  board: '<rect x="2" y="4" width="20" height="13" rx="1.5"/><path d="M12 17v4M7 21h10M6 9h6M6 12h9"/>',
+  stamp: '<path d="M9 3h6l-1 7h3l1 4H6l1-4h3z"/><path d="M5 18h14M5 21h14"/>',
+  compress: '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>',
+  print: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
+  translate: '<path d="M4 5h8M8 3v2M6 5c0 4 3 7 6 8M10 5c0 3-3 7-6 8M13 21l4-10 4 10M14.5 17h5"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  finger: '<path d="M12 11v4M8.5 7.5A5 5 0 0 1 17 11v2M7 11a5 5 0 0 1 .5-2.2M7 14v-3M17 16c0 2-1 4-2 5M12 19c0-1 .5-2 .5-4M9.5 21c.5-1 1-2.5 1-4.5"/><path d="M5 9a8 8 0 0 1 14 1"/>',
   erase: '<path d="m7 21-4-4 11-11 7 7-8 8z"/><path d="M7 21h13M10 10l7 7"/>',
   book: '<path d="M12 6c-2-1.5-5-2-9-2v14c4 0 7 .5 9 2 2-1.5 5-2 9-2V4c-4 0-7 .5-9 2zM12 6v14"/>',
   idcard: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/>',
@@ -122,14 +140,15 @@ const DB = {
 };
 
 /* =========================================================== trạng thái */
-const DEFAULT_SETTINGS = { pdfSize: 'a4', filter: 'magic', quality: 'std', ocrLang: 'vie', autoOcr: false, liveCam: true, autoCapture: true };
-const FILTERS = [['magic', 'Tăng cường'], ['bw', 'Trắng đen'], ['gray', 'Xám'], ['original', 'Ảnh gốc']];
+const DEFAULT_SETTINGS = { pdfSize: 'a4', filter: 'magic', quality: 'std', ocrLang: 'vie', autoOcr: false, liveCam: true, autoCapture: true, sort: 'updated', sortDir: 'desc', view: 'list', photoSize: '3x4', trTo: 'en' };
+const FILTERS = [['magic', 'Tăng cường'], ['bw', 'Trắng đen'], ['gray', 'Xám'], ['wb', 'Bảng trắng'], ['original', 'Ảnh gốc']];
 const QUALITY = { std: 2800, high: 3600 };
-const State = { docs: [], folders: [], assets: [], settings: { ...DEFAULT_SETTINGS }, folder: 'all', tab: 'docs', q: '', aq: '' };
+const State = { docs: [], trash: [], folders: [], assets: [], settings: { ...DEFAULT_SETTINGS }, folder: 'all', tab: 'home', q: '', aq: '' };
 
 async function loadAll() {
   const [docs, folders, assets, settings] = await Promise.all([DB.all('docs'), DB.all('folders'), DB.all('assets'), DB.get('kv', 'settings')]);
-  State.docs = docs.sort((a, b) => b.updatedAt - a.updatedAt);
+  State.trash = docs.filter(d => d.deletedAt);
+  State.docs = docs.filter(d => !d.deletedAt).sort((a, b) => b.updatedAt - a.updatedAt);
   State.folders = folders.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'vi'));
   State.assets = assets.sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }));
   State.settings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
@@ -236,23 +255,30 @@ const Busy = {
 };
 
 /* =========================================================== tab chính */
+const TABS = ['home', 'docs', 'tools', 'assets', 'settings'];
 function setTab(tab) {
+  if (!TABS.includes(tab)) tab = 'home';
   State.tab = tab;
   if (tab !== 'docs' && State.sel) { State.sel = null; renderSelBar(); }
   document.querySelectorAll('[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
   document.querySelectorAll('.tab[data-go]').forEach(b => b.setAttribute('aria-current', b.dataset.go === tab ? 'page' : 'false'));
-  if (tab === 'docs') renderDocs(); else if (tab === 'assets') renderAssets(); else renderSettings();
+  refresh();
   window.scrollTo(0, 0);
 }
-function refresh() { if (State.tab === 'docs') renderDocs(); else if (State.tab === 'assets') renderAssets(); else renderSettings(); }
+function refresh() {
+  const t = State.tab;
+  if (t === 'home') renderHome(); else if (t === 'docs') renderDocs(); else if (t === 'tools') renderTools();
+  else if (t === 'assets') renderAssets(); else renderSettings();
+}
 
-/* ---------- danh sách tài liệu */
+/* ---------- tìm kiếm, sắp xếp */
 function docMatches(doc, q) {
   if (!q) return { ok: true };
   const a = assetBy(doc.assetCode);
-  const meta = fold([doc.name, doc.note, doc.assetCode, a?.name, a?.unit, folderName(doc.folderId)].join(' '));
+  const meta = fold([doc.name, doc.note, doc.assetCode, a?.name, a?.unit, folderName(doc.folderId), (doc.tags || []).join(' ')].join(' '));
   const words = q.split(/\s+/).filter(Boolean);
   if (words.every(w => meta.includes(w))) return { ok: true };
+  if (doc.locked) return { ok: false };
   const text = Object.values(doc.ocr || {}).join('\n');
   const ft = fold(text);
   if (words.every(w => ft.includes(w) || meta.includes(w))) {
@@ -262,60 +288,238 @@ function docMatches(doc, q) {
   }
   return { ok: false };
 }
+const SORTS = [['updated', 'Ngày sửa'], ['created', 'Ngày tạo'], ['name', 'Tên A→Z'], ['pages', 'Số trang']];
+function sortDocs(arr) {
+  const s = State.settings.sort || 'updated', dir = State.settings.sortDir === 'asc' ? 1 : -1;
+  const key = { updated: d => d.updatedAt, created: d => d.createdAt, pages: d => d.pageIds.length, name: d => d.name }[s];
+  return arr.slice().sort((a, b) => s === 'name' ? a.name.localeCompare(b.name, 'vi', { numeric: true }) * (dir === -1 ? 1 : -1) : (key(a) - key(b)) * dir);
+}
+async function chooseSort() {
+  const v = await menuSheet('Sắp xếp theo', SORTS.map(([k, l]) => ({ icon: State.settings.sort === k ? 'check' : 'sort', label: l, value: k }))
+    .concat([{ icon: 'sort', label: State.settings.sortDir === 'asc' ? 'Đang: tăng dần — đổi sang giảm dần' : 'Đang: giảm dần — đổi sang tăng dần', value: 'dir' }]));
+  if (!v) return;
+  if (v === 'dir') State.settings.sortDir = State.settings.sortDir === 'asc' ? 'desc' : 'asc'; else State.settings.sort = v;
+  await saveSettings(); refresh();
+}
+async function toggleView() { State.settings.view = State.settings.view === 'grid' ? 'list' : 'grid'; await saveSettings(); refresh(); }
+const isSigned = d => d.signed;
+
+/** Vẽ danh sách / lưới tài liệu vào ul */
+function drawDocList(list, docs, { q = '', selectable = false } = {}) {
+  const grid = State.settings.view === 'grid';
+  list.className = grid ? 'doc-grid' : 'list';
+  list.replaceChildren();
+  for (const [d, m] of docs) {
+    const a = d.assetCode ? assetBy(d.assetCode) : null;
+    const th = el('div', { class: 'thumb' + (d.locked ? ' locked' : '') }, d.locked ? icon('lock') : null, el('span', { class: 'pc' }, d.pageIds.length));
+    const selMode = selectable && !!State.sel, checked = selMode && State.sel.has(d.id);
+    const tags = (d.tags || []).slice(0, 3);
+    const btn = el('button', { class: (grid ? 'tile' : 'row') + (checked ? ' checked' : ''), type: 'button', 'aria-pressed': selMode ? String(checked) : null,
+      onclick: () => { if (btn.__long) { btn.__long = false; return; } if (State.sel && selectable) toggleSel(d.id); else openDoc(d.id); } },
+      selMode && el('span', { class: 'check', 'aria-hidden': 'true' }, checked ? icon('check') : null),
+      th,
+      el('div', { class: 'row-body' },
+        el('div', { class: 'row-title' }, d.name),
+        el('div', { class: 'row-meta' }, grid ? fmtDate(d.updatedAt, false) : `${folderName(d.folderId)} · ${fmtDate(d.updatedAt)}`),
+        !grid && (d.assetCode || tags.length || d.signed) && el('div', { class: 'row-tags' },
+          d.assetCode && el('span', { class: 'tag' }, el('span', { class: 'code' }, d.assetCode), a?.name && el('span', { class: 'nm' }, a.name)),
+          d.signed && el('span', { class: 'pill ok' }, 'Đã ký'),
+          tags.map(t => el('span', { class: 'pill' }, '#' + t))),
+        !grid && m && m.snip && snippet(m.snip, m.hit)));
+    if (selectable) longPress(btn, () => { if (!State.sel) { State.sel = new Set(); } toggleSel(d.id); });
+    list.append(el('li', {}, btn));
+    if (d.pageIds[0] && !d.locked) thumbUrl(d.pageIds[0]).then(u => { if (u) th.style.backgroundImage = `url("${u}")`; });
+  }
+}
+
+/* ---------- trang chủ */
+const QUICK = [
+  ['word', 'Sang Word', () => pickDocThen('Chọn tài liệu chuyển sang Word', d => exportDoc(d, 'word'))],
+  ['excel', 'Sang Excel', () => pickDocThen('Chọn tài liệu chuyển sang Excel', d => exportDoc(d, 'xlsx'))],
+  ['ppt', 'Sang PPT', () => pickDocThen('Chọn tài liệu chuyển sang PowerPoint', d => exportDoc(d, 'pptx'))],
+  ['image', 'Sang ảnh', () => pickDocThen('Chọn tài liệu xuất ra ảnh JPG', d => exportDoc(d, 'jpg'))],
+  ['merge', 'Gộp file', () => { setTab('docs'); State.sel = new Set(); renderDocs(); toast('Chọn 2 tài liệu trở lên rồi bấm Gộp'); }],
+  ['split', 'Trích trang', () => pickDocThen('Chọn tài liệu cần trích trang', d => splitDoc(d), d => d.pageIds.length > 1)],
+  ['qr', 'Mã QR', () => startScan({ source: 'camera', mode: 'qr' })],
+  ['grid', 'Tất cả', () => setTab('tools')],
+];
+function renderHome() {
+  const body = $('#home-body');
+  const recent = sortDocs(State.docs).slice(0, 12).map(d => [d, null]);
+  const list = el('ul', {});
+  body.replaceChildren(
+    el('div', { class: 'hero' },
+      el('div', { class: 'hero-art', 'aria-hidden': 'true' }, emptyArt()),
+      el('p', { class: 'hero-t' }, 'Chụp giấy tờ, nhập ảnh hoặc file PDF'),
+      el('div', { class: 'hero-acts' },
+        el('button', { class: 'hero-btn primary', type: 'button', onclick: () => startScan({ source: 'camera' }) }, icon('camera'), 'Quét thông minh'),
+        el('button', { class: 'hero-btn', type: 'button', onclick: () => startScan({ source: 'gallery' }) }, icon('image'), 'Nhập ảnh'),
+        el('button', { class: 'hero-btn', type: 'button', onclick: () => PdfImport.pickAndImport() }, icon('pdf'), 'Nhập file PDF'))),
+    el('div', { class: 'quick', role: 'list' }, QUICK.map(([ic, l, fn]) => el('button', { class: 'q-btn', type: 'button', role: 'listitem', onclick: fn }, el('span', { class: 'q-ic ' + ic }, icon(ic)), l))),
+    el('div', { class: 'sec-head' },
+      el('h2', {}, 'Gần đây'),
+      el('button', { class: 'icon-btn sm', type: 'button', 'aria-label': 'Sắp xếp', onclick: chooseSort }, icon('sort')),
+      el('button', { class: 'icon-btn sm', type: 'button', 'aria-label': State.settings.view === 'grid' ? 'Xem dạng danh sách' : 'Xem dạng lưới', onclick: toggleView }, icon(State.settings.view === 'grid' ? 'list' : 'grid')),
+      el('button', { class: 'btn sm ghost', type: 'button', onclick: () => setTab('docs') }, 'Xem tất cả')),
+    recent.length ? list : el('div', { class: 'empty' }, el('h3', {}, 'Chưa có tài liệu nào'),
+      el('p', {}, 'Bấm "Quét thông minh" để chụp biên bản, lý lịch thiết bị hay chứng từ. App tự tìm mép giấy, nắn phẳng và làm rõ chữ.')),
+  );
+  if (recent.length) drawDocList(list, recent);
+}
+
+/* ---------- tài liệu của tôi */
 function renderFolderChips() {
   const box = $('#folder-chips'); box.replaceChildren();
-  const count = id => State.docs.filter(d => id === 'all' || (d.folderId || '') === id).length;
+  const count = id => State.docs.filter(d => id === 'all' || (id === '#signed' ? d.signed : id.startsWith('#') ? (d.tags || []).includes(id.slice(1)) : (d.folderId || '') === id)).length;
   const chip = (id, label) => el('button', {
     class: 'chip', type: 'button', 'aria-pressed': String(State.folder === id),
     onclick: () => { State.folder = id; renderDocs(); },
   }, label, el('span', { class: 'n' }, count(id)));
   box.append(chip('all', 'Tất cả'));
+  if (State.docs.some(isSigned)) box.append(chip('#signed', 'Đã ký'));
   State.folders.forEach(f => box.append(chip(f.id, f.name)));
   if (State.docs.some(d => !d.folderId)) box.append(chip('', 'Chưa phân loại'));
+  allTags().forEach(t => box.append(chip('#' + t, '#' + t)));
   box.append(el('button', { class: 'chip add', type: 'button', onclick: manageFolders }, icon('folder'), 'Thư mục'));
+}
+function allTags() { return [...new Set(State.docs.flatMap(d => d.tags || []))].sort((a, b) => a.localeCompare(b, 'vi')); }
+function inFilter(d) {
+  const f = State.folder;
+  if (f === 'all') return true;
+  if (f === '#signed') return d.signed;
+  if (f.startsWith('#')) return (d.tags || []).includes(f.slice(1));
+  return (d.folderId || '') === f;
 }
 async function renderDocs() {
   renderFolderChips();
   renderSelBar();
   $('#doc-total').textContent = State.docs.length ? `${State.docs.length} tài liệu` : '';
+  $('#view-btn').replaceChildren(icon(State.settings.view === 'grid' ? 'list' : 'grid'));
   const q = fold(State.q.trim());
-  const list = $('#doc-list'); list.replaceChildren();
   const rows = [];
-  for (const d of State.docs) {
-    if (State.folder !== 'all' && (d.folderId || '') !== State.folder) continue;
+  for (const d of sortDocs(State.docs)) {
+    if (!inFilter(d)) continue;
     const m = docMatches(d, q); if (!m.ok) continue;
     rows.push([d, m]);
   }
+  const list = $('#doc-list');
   const empty = $('#doc-empty');
   if (!rows.length) {
+    list.replaceChildren();
     empty.hidden = false;
     empty.replaceChildren(...(State.docs.length
-      ? [el('h3', {}, 'Không tìm thấy tài liệu'), el('p', {}, q ? 'Thử từ khóa khác, hoặc bấm "Nhận dạng chữ" trong tài liệu để tìm được theo nội dung.' : 'Thư mục này chưa có tài liệu.')]
+      ? [el('h3', {}, 'Không tìm thấy tài liệu'), el('p', {}, q ? 'Thử từ khóa khác, hoặc bấm "Nhận dạng chữ" trong tài liệu để tìm được theo nội dung.' : 'Mục này chưa có tài liệu.')]
       : [emptyArt(), el('h3', {}, 'Chưa có tài liệu nào'),
-        el('p', {}, 'Bấm nút quét màu vàng để chụp biên bản, lý lịch thiết bị hay chứng từ. App tự tìm mép giấy, nắn phẳng và làm rõ chữ.'),
+        el('p', {}, 'Bấm nút quét màu vàng để chụp biên bản, lý lịch thiết bị hay chứng từ.'),
         el('button', { class: 'btn accent', onclick: () => startScan({ source: 'camera' }) }, icon('camera'), 'Quét tài liệu đầu tiên')]));
     return;
   }
   empty.hidden = true;
-  for (const [d, m] of rows) {
-    const a = d.assetCode ? assetBy(d.assetCode) : null;
-    const th = el('div', { class: 'thumb' }, el('span', { class: 'pc' }, d.pageIds.length));
-    const selMode = !!State.sel, checked = selMode && State.sel.has(d.id);
-    const btn = el('button', { class: 'row' + (checked ? ' checked' : ''), type: 'button', 'aria-pressed': selMode ? String(checked) : null,
-      onclick: () => { if (btn.__long) { btn.__long = false; return; } if (State.sel) toggleSel(d.id); else openDoc(d.id); } },
-      selMode && el('span', { class: 'check', 'aria-hidden': 'true' }, checked ? icon('check') : null),
-      th,
-      el('div', { class: 'row-body' },
-        el('div', { class: 'row-title' }, d.name),
-        el('div', { class: 'row-meta' }, `${folderName(d.folderId)} · ${fmtDate(d.updatedAt)}`),
-        d.assetCode && el('div', { class: 'tag' }, el('span', { class: 'code' }, d.assetCode), a?.name && el('span', { class: 'nm' }, a.name)),
-        m.snip && snippet(m.snip, m.hit)));
-    longPress(btn, () => { if (!State.sel) { State.sel = new Set(); } toggleSel(d.id); });
-    const li = el('li', {}, btn);
-    list.append(li);
-    if (d.pageIds[0]) thumbUrl(d.pageIds[0]).then(u => { if (u) th.style.backgroundImage = `url("${u}")`; });
-  }
+  drawDocList(list, rows, { q, selectable: true });
 }
+
+/* ---------- công cụ */
+function toolGroups() {
+  return [
+    ['Quét', [
+      ['camera', 'Quét tài liệu', () => startScan({ source: 'camera', mode: 'doc' })],
+      ['idcard', 'CCCD 2 mặt', () => startScan({ source: 'camera', mode: 'id' })],
+      ['passport', 'Hộ chiếu', () => startScan({ source: 'camera', mode: 'passport' })],
+      ['person', 'Ảnh thẻ', () => startScan({ source: 'camera', mode: 'photo' })],
+      ['excel', 'Bảng biểu', () => startScan({ source: 'camera', mode: 'table' })],
+      ['board', 'Bảng trắng', () => startScan({ source: 'camera', mode: 'wb' })],
+      ['book', 'Sách', () => startScan({ source: 'camera', mode: 'book' })],
+      ['qr', 'Mã QR', () => startScan({ source: 'camera', mode: 'qr' })],
+    ]],
+    ['Nhập', [
+      ['image', 'Nhập ảnh', () => startScan({ source: 'gallery' })],
+      ['pdf', 'Nhập file PDF', () => PdfImport.pickAndImport()],
+      ['qr', 'Quét mã từ ảnh', () => Codes.fromImage()],
+    ]],
+    ['Chuyển đổi', [
+      ['word', 'Sang Word', QUICK[0][2]], ['excel', 'Sang Excel', QUICK[1][2]], ['ppt', 'Sang PPT', QUICK[2][2]], ['image', 'Sang ảnh', QUICK[3][2]],
+      ['pdf', 'Sang PDF', () => pickDocThen('Chọn tài liệu xuất PDF', d => exportDoc(d, 'pdf'))],
+      ['text', 'Trích xuất chữ', () => pickDocThen('Chọn tài liệu cần lấy chữ', d => openText(d))],
+      ['translate', 'Dịch', () => pickDocThen('Chọn tài liệu cần dịch', async d => { if (!ocrText(d)) { await runOcr(d); d = await DB.get('docs', d.id); } if (ocrText(d)) Translate.open(ocrText(d), 'Dịch: ' + d.name); })],
+    ]],
+    ['Sắp xếp', [
+      ['merge', 'Gộp file', QUICK[4][2]], ['split', 'Trích trang', QUICK[5][2]],
+      ['layers', 'Sắp xếp trang', () => pickDocThen('Chọn tài liệu', d => openViewer(d.id, 0))],
+    ]],
+    ['Chỉnh sửa', [
+      ['sign', 'Chữ ký điện tử', () => pickDocThen('Chọn tài liệu cần ký', d => signDoc(d))],
+      ['stamp', 'Đóng dấu mờ', () => pickDocThen('Chọn tài liệu đóng dấu mờ', d => exportDoc(d, 'pdf', { watermark: 'BẢN SAO' }))],
+      ['compress', 'Nén PDF', () => pickDocThen('Chọn tài liệu cần nén', d => exportDoc(d, 'pdf', { compress: true }))],
+      ['lock', 'Đặt mật khẩu PDF', () => pickDocThen('Chọn tài liệu', d => exportDoc(d, 'pdf', { askPw: true }))],
+      ['print', 'In', () => pickDocThen('Chọn tài liệu cần in', d => printDoc(d))],
+    ]],
+    ['Bảo mật & dữ liệu', [
+      ['lock', 'Khóa ứng dụng', () => Lock.settings()],
+      ['trash', 'Thùng rác', openTrash],
+      ['qr', 'Lịch sử mã QR', () => Codes.openHistory()],
+      ['download', 'Sao lưu', backupAll],
+    ]],
+  ];
+}
+function renderTools() {
+  $('#tools-body').replaceChildren(...toolGroups().map(([g, items]) => el('section', { class: 'tool-sec' },
+    el('h2', { class: 'section-label' }, g),
+    el('div', { class: 'tool-grid' }, items.map(([ic, l, fn]) => el('button', { class: 'q-btn', type: 'button', onclick: fn }, el('span', { class: 'q-ic ' + ic }, icon(ic)), l))))));
+}
+/** Chọn 1 tài liệu rồi chạy việc */
+async function pickDocThen(title, fn, filter) {
+  const docs = sortDocs(State.docs).filter(d => !filter || filter(d));
+  if (!docs.length) { toast(State.docs.length ? 'Không có tài liệu phù hợp' : 'Chưa có tài liệu nào — hãy quét hoặc nhập trước'); return; }
+  const list = el('div', { class: 'pick-docs' });
+  let closeFn;
+  for (const d of docs) {
+    const th = el('div', { class: 'thumb sm' + (d.locked ? ' locked' : '') }, d.locked ? icon('lock') : null);
+    list.append(el('button', { type: 'button', class: 'row', onclick: () => closeFn(d.id) }, th,
+      el('div', { class: 'row-body' }, el('div', { class: 'row-title' }, d.name), el('div', { class: 'row-meta' }, `${d.pageIds.length} trang · ${fmtDate(d.updatedAt)}`))));
+    if (d.pageIds[0] && !d.locked) thumbUrl(d.pageIds[0]).then(u => { if (u) th.style.backgroundImage = `url("${u}")`; });
+  }
+  const id = await sheet({ title, body: list, onOpen: (b, c) => { closeFn = c; }, actions: [{ label: 'Đóng', value: null }] });
+  if (!id) return;
+  const doc = await DB.get('docs', id);
+  if (!(await Lock.openDocGate(doc))) return;
+  await fn(doc);
+}
+
+/* ---------- thùng rác */
+async function openTrash() {
+  const scr = el('div', { class: 'screen' }); document.body.append(scr);
+  Layers.push(() => { scr.remove(); refresh(); });
+  const render = () => {
+    const items = State.trash.slice().sort((a, b) => b.deletedAt - a.deletedAt);
+    const list = el('ul', { class: 'list' });
+    scr.replaceChildren(
+      el('header', { class: 'topbar' }, el('div', { class: 'wrap' },
+        el('button', { class: 'icon-btn', 'aria-label': 'Quay lại', onclick: () => Layers.back() }, icon('back')),
+        el('div', { class: 'h1' }, 'Thùng rác'),
+        items.length > 0 && el('button', { class: 'btn sm ghost', style: 'color:var(--danger)', onclick: async () => {
+          if (!(await confirmBox('Dọn sạch thùng rác?', `${items.length} tài liệu sẽ bị xóa vĩnh viễn.`, 'Xóa vĩnh viễn'))) return;
+          for (const d of items) await deleteForever(d);
+          await loadAll(); render(); toast('Đã dọn thùng rác');
+        } }, 'Dọn sạch'))),
+      el('div', { class: 'wrap', style: 'display:grid;gap:12px' },
+        el('p', { class: 'muted', style: 'margin:0' }, 'Tài liệu đã xóa được giữ 30 ngày rồi tự xóa hẳn.'),
+        items.length ? list : el('div', { class: 'empty' }, el('h3', {}, 'Thùng rác trống'))));
+    for (const d of items) {
+      const left = Math.max(0, 30 - Math.floor((Date.now() - d.deletedAt) / 86400000));
+      const th = el('div', { class: 'thumb' });
+      list.append(el('li', {}, el('div', { class: 'row' }, th,
+        el('div', { class: 'row-body' }, el('div', { class: 'row-title' }, d.name), el('div', { class: 'row-meta' }, `${d.pageIds.length} trang · còn ${left} ngày`)),
+        el('button', { class: 'btn sm', onclick: async () => { delete d.deletedAt; d.updatedAt = Date.now(); await DB.put('docs', d); await loadAll(); render(); toast('Đã khôi phục'); } }, 'Khôi phục'),
+        el('button', { class: 'icon-btn', 'aria-label': 'Xóa vĩnh viễn', style: 'color:var(--danger)', onclick: async () => {
+          if (!(await confirmBox(`Xóa vĩnh viễn "${d.name}"?`, 'Không khôi phục được.'))) return;
+          await deleteForever(d); await loadAll(); render();
+        } }, icon('trash')))));
+      if (d.pageIds[0]) thumbUrl(d.pageIds[0]).then(u => { if (u) th.style.backgroundImage = `url("${u}")`; });
+    }
+  };
+  render();
+}
+
 function snippet(text, hit) {
   const s = el('div', { class: 'row-snip' });
   const i = hit ? text.indexOf(hit) : -1;
@@ -371,19 +575,21 @@ async function addFolder() {
 
 /* =========================================================== chi tiết tài liệu */
 async function openDoc(id) {
+  const first = await DB.get('docs', id);
+  if (!first) return null;
+  if (!(await Lock.openDocGate(first))) return null;
   const scr = el('div', { class: 'screen', role: 'region', 'aria-label': 'Tài liệu' });
   document.body.append(scr);
   Layers.push(() => { scr.remove(); refresh(); });
-  let showOcr = false;
   const render = async () => {
     const doc = await DB.get('docs', id);
-    if (!doc) { Layers.back(); return; }
+    if (!doc || doc.deletedAt) { Layers.back(); return; }
     const a = doc.assetCode ? assetBy(doc.assetCode) : null;
-    const hasOcr = doc.pageIds.some(p => doc.ocr?.[p]);
+    const text = ocrText(doc);
     scr.replaceChildren(
       el('header', { class: 'topbar' }, el('div', { class: 'wrap' },
         el('button', { class: 'icon-btn', 'aria-label': 'Quay lại', onclick: () => Layers.back() }, icon('back')),
-        el('div', { class: 'h1' }, doc.name),
+        el('button', { class: 'h1 title-btn', type: 'button', onclick: () => editDocInfo(doc).then(render) }, doc.name, doc.locked ? icon('lock') : null),
         el('button', { class: 'icon-btn', 'aria-label': 'Thêm thao tác', onclick: () => docMenu(doc, render) }, icon('more')))),
       el('div', { class: 'wrap', style: 'display:grid;gap:16px;padding-top:4px' },
         el('div', { class: 'card' },
@@ -391,21 +597,23 @@ async function openDoc(id) {
             el('button', { class: 'v', onclick: async () => { const c = await pickAsset(doc.assetCode); if (c !== null) { doc.assetCode = c; doc.updatedAt = Date.now(); await DB.put('docs', doc); await loadAll(); render(); } } },
               doc.assetCode ? el('span', { class: 'tag' }, el('span', { class: 'code' }, doc.assetCode), el('span', { class: 'nm' }, a?.name || '')) : el('span', { class: 'placeholder' }, 'Chưa gắn — bấm để chọn'))),
           el('div', { class: 'kv' }, el('span', { class: 'k' }, 'Thư mục'), el('span', { class: 'v' }, folderName(doc.folderId))),
+          (doc.tags || []).length > 0 && el('div', { class: 'kv' }, el('span', { class: 'k' }, 'Nhãn'), el('span', { class: 'v row-tags' }, doc.tags.map(t => el('span', { class: 'pill' }, '#' + t)))),
           el('div', { class: 'kv' }, el('span', { class: 'k' }, 'Ngày quét'), el('span', { class: 'v mono', style: 'font-size:14px' }, fmtDate(doc.createdAt))),
           doc.note && el('div', { class: 'kv' }, el('span', { class: 'k' }, 'Ghi chú'), el('span', { class: 'v', style: 'font-weight:400' }, doc.note))),
         el('div', {},
           el('div', { class: 'section-label' }, `${doc.pageIds.length} trang`),
           el('div', { class: 'pages', id: 'pg' })),
-        hasOcr && el('div', {},
-          el('div', { class: 'ocr-head' }, el('div', { class: 'section-label' }, 'Nội dung chữ nhận dạng'),
-            el('button', { class: 'btn sm ghost', onclick: () => copyText(ocrText(doc)) }, icon('copy'), 'Sao chép')),
-          el('div', { class: 'ocr-box', id: 'ocr-box' }, ocrText(doc))),
+        text && el('div', {},
+          el('div', { class: 'ocr-head' }, el('div', { class: 'section-label' }, 'Nội dung chữ'),
+            el('button', { class: 'btn sm ghost', onclick: () => openText(doc).then(render) }, icon('edit'), 'Xem & sửa')),
+          el('div', { class: 'ocr-box clip' }, text.slice(0, 600) + (text.length > 600 ? '…' : ''))),
       ),
-      el('div', { class: 'actionbar' }, el('div', { class: 'wrap' },
+      el('div', { class: 'actionbar' }, el('div', { class: 'wrap five' },
         el('button', { class: 'act primary', onclick: () => exportDoc(doc) }, icon('share'), 'Xuất file'),
-        el('button', { class: 'act', onclick: async () => { await runOcr(doc); render(); } }, icon('text'), hasOcr ? 'Nhận dạng lại' : 'Nhận dạng chữ'),
+        el('button', { class: 'act', onclick: async () => { if (!text) await runOcr(doc); await openText(await DB.get('docs', doc.id)); render(); } }, icon('text'), 'Văn bản'),
+        el('button', { class: 'act', onclick: async () => { await signDoc(doc); render(); } }, icon('sign'), 'Ký tên'),
         el('button', { class: 'act', onclick: () => startScan({ source: 'camera', docId: doc.id, onDone: render }) }, icon('camera'), 'Thêm trang'),
-        el('button', { class: 'act', onclick: () => editDocInfo(doc).then(render) }, icon('edit'), 'Sửa thông tin'))),
+        el('button', { class: 'act', onclick: () => docMenu(doc, render) }, icon('more'), 'Khác'))),
     );
     const grid = scr.querySelector('#pg');
     doc.pageIds.forEach((pid, i) => {
@@ -426,28 +634,98 @@ async function copyText(t) {
 }
 async function docMenu(doc, render) {
   const v = await menuSheet(doc.name, [
-    { icon: 'share', label: 'Xuất PDF / Word / ảnh', value: 'export' },
-    doc.pageIds.length > 1 && { icon: 'split', label: 'Tách trang ra tài liệu mới', value: 'split' },
-    { icon: 'edit', label: 'Sửa tên, thư mục, ghi chú', value: 'edit' },
-    { icon: 'trash', label: 'Xóa tài liệu', value: 'delete', danger: true },
+    { icon: 'share', label: 'Xuất PDF / Word / Excel / PPT / ảnh', value: 'export' },
+    { icon: 'translate', label: 'Dịch nội dung', value: 'translate' },
+    { icon: 'print', label: 'In', value: 'print' },
+    doc.pageIds.length > 1 && { icon: 'split', label: 'Trích trang ra tài liệu mới', value: 'split' },
+    { icon: 'text', label: 'Nhận dạng chữ lại', value: 'ocr' },
+    { icon: 'lock', label: doc.locked ? 'Mở khóa tài liệu' : 'Khóa tài liệu bằng mã PIN', value: 'lock' },
+    { icon: 'edit', label: 'Sửa tên, thư mục, nhãn, ghi chú', value: 'edit' },
+    { icon: 'trash', label: 'Chuyển vào thùng rác', value: 'delete', danger: true },
   ]);
   if (v === 'export') exportDoc(doc);
+  else if (v === 'translate') { let d = doc; if (!ocrText(d)) { await runOcr(d); d = await DB.get('docs', d.id); } if (ocrText(d)) Translate.open(ocrText(d), 'Dịch: ' + d.name); }
+  else if (v === 'print') printDoc(doc);
   else if (v === 'split') { await splitDoc(doc); render(); }
+  else if (v === 'ocr') { await runOcr(doc); render(); }
+  else if (v === 'lock') { await Lock.toggleDocLock(doc); render(); }
   else if (v === 'edit') { await editDocInfo(doc); render(); }
-  else if (v === 'delete') {
-    if (await confirmBox(`Xóa "${doc.name}"?`, `${doc.pageIds.length} trang ảnh sẽ bị xóa khỏi máy. Không khôi phục được.`)) {
-      await deleteDoc(doc); toast('Đã xóa tài liệu'); Layers.back();
-    }
-  }
+  else if (v === 'delete') { await deleteDoc(doc); toast('Đã chuyển vào thùng rác (giữ 30 ngày)'); Layers.back(); }
 }
 async function deleteDoc(doc) {
+  doc.deletedAt = Date.now(); await DB.put('docs', doc); await loadAll();
+}
+async function deleteForever(doc) {
   for (const p of doc.pageIds) { await DB.del('pages', p); forgetPage(p); }
-  await DB.del('docs', doc.id); await loadAll();
+  await DB.del('docs', doc.id);
+}
+
+/* ---------- văn bản nhận dạng: xem, sửa, sao chép, dịch, xuất .txt */
+async function openText(doc) {
+  return new Promise(resolve => {
+    const scr = el('div', { class: 'screen' }); document.body.append(scr);
+    let cur = 0, dirty = false;
+    const areas = doc.pageIds.map(pid => el('textarea', { class: 'text-edit', spellcheck: 'false', 'aria-label': 'Nội dung chữ', oninput: () => { dirty = true; } }, doc.ocr?.[pid] || ''));
+    const save = async () => {
+      if (!dirty) return;
+      doc.ocr = doc.ocr || {};
+      doc.ocrEdit = doc.ocrEdit || {};
+      doc.pageIds.forEach((pid, i) => { if ((doc.ocr[pid] || '') !== areas[i].value) doc.ocrEdit[pid] = true; doc.ocr[pid] = areas[i].value; });
+      doc.updatedAt = Date.now(); await DB.put('docs', doc); await loadAll(); dirty = false; toast('Đã lưu nội dung chữ');
+    };
+    Layers.push(async () => { await save(); scr.remove(); resolve(); });
+    const all = () => areas.map((a, i) => (doc.pageIds.length > 1 ? `— Trang ${i + 1} —\n` : '') + a.value.trim()).join('\n\n');
+    const draw = () => {
+      scr.replaceChildren(
+        el('header', { class: 'topbar' }, el('div', { class: 'wrap' },
+          el('button', { class: 'icon-btn', 'aria-label': 'Quay lại', onclick: () => Layers.back() }, icon('back')),
+          el('div', { class: 'h1' }, 'Văn bản'),
+          el('button', { class: 'btn sm primary', onclick: save }, 'Lưu'))),
+        el('div', { class: 'wrap', style: 'display:grid;gap:12px' },
+          doc.pageIds.length > 1 && el('div', { class: 'chips' }, doc.pageIds.map((_, i) => el('button', { class: 'chip', type: 'button', 'aria-pressed': String(i === cur), onclick: () => { cur = i; draw(); } }, `Trang ${i + 1}`))),
+          areas[cur],
+          el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Sửa trực tiếp chữ nhận dạng sai. Nội dung đã sửa dùng cho tìm kiếm, Word, dịch và file .txt.')),
+        el('div', { class: 'actionbar' }, el('div', { class: 'wrap five' },
+          el('button', { class: 'act primary', onclick: () => copyText(areas[cur].value) }, icon('copy'), 'Chép trang'),
+          el('button', { class: 'act', onclick: () => copyText(all()) }, icon('layers'), 'Chép tất cả'),
+          el('button', { class: 'act', onclick: () => Translate.open(areas[cur].value, 'Dịch trang ' + (cur + 1)) }, icon('translate'), 'Dịch'),
+          el('button', { class: 'act', onclick: async () => { await save(); deliver([new File([all()], safeName(doc.name) + '.txt', { type: 'text/plain' })], doc.name); } }, icon('download'), 'Xuất .txt'),
+          el('button', { class: 'act', onclick: async () => { await save(); await runOcr(doc); const d = await DB.get('docs', doc.id); doc.ocr = d.ocr; doc.pageIds.forEach((pid, i) => { areas[i].value = d.ocr?.[pid] || ''; }); } }, icon('rotate'), 'Nhận dạng lại'))),
+      );
+    };
+    draw();
+  });
+}
+
+/* ---------- ký tên */
+async function saveAnnots(doc, page, res) {
+  Object.assign(page, res); await DB.put('pages', page); forgetPage(page.id);
+  doc = await DB.get('docs', doc.id);
+  const pages = await Promise.all(doc.pageIds.map(id => DB.get('pages', id)));
+  doc.signed = pages.some(p => (p.annots || []).some(a => a.type === 'sig'));
+  doc.updatedAt = Date.now(); await DB.put('docs', doc); await loadAll();
+}
+async function signDoc(doc) {
+  let idx = 0;
+  if (doc.pageIds.length > 1) {
+    const grid = el('div', { class: 'pick-pages' });
+    let closeFn;
+    doc.pageIds.forEach((pid, i) => {
+      const img = el('div', { class: 'pimg' });
+      grid.append(el('button', { type: 'button', class: 'pp', onclick: () => closeFn(String(i)) }, img, el('span', {}, `Trang ${i + 1}`)));
+      thumbUrl(pid).then(u => { if (u) img.style.backgroundImage = `url("${u}")`; });
+    });
+    const v = await sheet({ title: 'Ký vào trang nào?', body: grid, onOpen: (b, c) => { closeFn = c; }, actions: [{ label: 'Hủy', value: null }] });
+    if (v == null) return;
+    idx = +v;
+  }
+  const page = await DB.get('pages', doc.pageIds[idx]);
+  await new Promise(res => Annotate.open(page, async r => { await saveAnnots(doc, page, r); res(); }, { onClose: res }));
 }
 
 /* ---------- biểu mẫu thông tin tài liệu */
 function docForm(init) {
-  const vals = { name: init.name || '', folderId: init.folderId || '', assetCode: init.assetCode || '', note: init.note || '' };
+  const vals = { name: init.name || '', folderId: init.folderId || '', assetCode: init.assetCode || '', note: init.note || '', tags: (init.tags || []).slice() };
   const name = el('input', { id: 'f-name', type: 'text', value: vals.name, 'data-noautofocus': '1' });
   const folder = el('select', { id: 'f-folder' });
   const fillFolders = () => {
@@ -470,14 +748,28 @@ function docForm(init) {
   };
   drawAsset();
   assetBtn.addEventListener('click', async () => { const c = await pickAsset(vals.assetCode); if (c !== null) { vals.assetCode = c; drawAsset(); } });
+  // nhãn: gõ rồi Enter / dấu phẩy, hoặc chạm nhãn gợi ý
+  const tagBox = el('div', { class: 'tag-input' });
+  const tagIn = el('input', { id: 'f-tags', type: 'text', placeholder: 'Thêm nhãn…', 'data-noautofocus': '1', autocomplete: 'off' });
+  const sugg = el('div', { class: 'row-tags' });
+  const addTag = t => { t = t.trim().replace(/^#/, '').replace(/\s+/g, '-').slice(0, 30); if (t && !vals.tags.includes(t)) vals.tags.push(t); drawTags(); };
+  const drawTags = () => {
+    tagBox.replaceChildren(...vals.tags.map(t => el('button', { type: 'button', class: 'pill on', 'aria-label': 'Bỏ nhãn ' + t, onclick: () => { vals.tags = vals.tags.filter(x => x !== t); drawTags(); } }, '#' + t, ' ×')), tagIn);
+    const rest = allTags().filter(t => !vals.tags.includes(t)).slice(0, 12);
+    sugg.replaceChildren(...rest.map(t => el('button', { type: 'button', class: 'pill', onclick: () => addTag(t) }, '#' + t)));
+  };
+  tagIn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagIn.value); tagIn.value = ''; tagIn.focus(); } });
+  tagIn.addEventListener('blur', () => { if (tagIn.value.trim()) { addTag(tagIn.value); tagIn.value = ''; } });
+  drawTags();
   const note = el('textarea', { id: 'f-note', placeholder: 'VD: Bàn giao cho PX Đào lò 1, có chữ ký quản đốc' }, vals.note);
   const body = [
     el('div', { class: 'field' }, el('label', { for: 'f-name' }, 'Tên tài liệu'), name),
     el('div', { class: 'field' }, el('label', { for: 'f-asset' }, 'Gắn vào tài sản'), assetBtn),
     el('div', { class: 'field' }, el('label', { for: 'f-folder' }, 'Thư mục'), folder),
+    el('div', { class: 'field' }, el('label', { for: 'f-tags' }, 'Nhãn'), tagBox, sugg),
     el('div', { class: 'field' }, el('label', { for: 'f-note' }, 'Ghi chú'), note),
   ];
-  const read = () => ({ ...vals, name: name.value.trim() || init.name || 'Tài liệu', note: note.value.trim() });
+  const read = () => { if (tagIn.value.trim()) addTag(tagIn.value); return { ...vals, name: name.value.trim() || init.name || 'Tài liệu', note: note.value.trim() }; };
   return { body, read };
 }
 async function editDocInfo(doc) {
@@ -538,14 +830,12 @@ async function openViewer(docId, index, onChange) {
       el('div', { class: 'sc-tools', style: 'padding-bottom:12px;flex-wrap:wrap' },
         el('button', { class: 'sc-tool', disabled: i === 0, onclick: () => { i--; draw(); } }, icon('left'), 'Trước'),
         el('button', { class: 'sc-tool', onclick: () => editPage(doc, page, draw) }, icon('crop'), 'Sửa lại'),
-        el('button', { class: 'sc-tool', onclick: () => Annotate.open(page, async res => {
-          Object.assign(page, res); await DB.put('pages', page); forgetPage(page.id);
-          doc.updatedAt = Date.now(); await DB.put('docs', doc); await loadAll(); draw();
-        }) }, icon('sign'), 'Ký & ghi chú'),
+        el('button', { class: 'sc-tool', onclick: async () => { await quickRotate(doc, page); draw(); } }, icon('rotate'), 'Xoay'),
+        el('button', { class: 'sc-tool', onclick: () => Annotate.open(page, async res => { await saveAnnots(doc, page, res); draw(); }) }, icon('sign'), 'Ký & ghi chú'),
         el('button', { class: 'sc-tool', onclick: () => moveMenu() }, icon('more'), 'Sắp xếp'),
         el('button', { class: 'sc-tool', onclick: async () => {
           if (!(await confirmBox(`Xóa trang ${i + 1}?`, doc.pageIds.length === 1 ? 'Đây là trang duy nhất, tài liệu sẽ bị xóa luôn.' : 'Ảnh trang này sẽ bị xóa khỏi máy.'))) return;
-          if (doc.pageIds.length === 1) { await deleteDoc(doc); toast('Đã xóa tài liệu'); Layers.back(); return; }
+          if (doc.pageIds.length === 1) { await deleteDoc(doc); toast('Đã chuyển tài liệu vào thùng rác'); Layers.back(); return; }
           const pid = doc.pageIds.splice(i, 1)[0]; if (doc.ocr) delete doc.ocr[pid];
           doc.updatedAt = Date.now(); await DB.put('docs', doc); await DB.del('pages', pid); forgetPage(pid); await loadAll(); draw();
         } }, icon('trash'), 'Xóa'),
@@ -583,10 +873,10 @@ function pickFiles(source) {
   });
 }
 /** Đọc 1 ảnh thành 1 trang quét: ảnh gốc, ảnh nhỏ để xem trước, khung giấy tự nhận */
-async function importBlob(blob, hintCorners) {
+async function importBlob(blob, hintCorners, opts = {}) {
   const full = await Imaging.blobToCanvas(blob, 4096);
   const small = Imaging.scaleCanvas(full, 1100);
-  let corners = Imaging.detectQuad(small);
+  let corners = opts.noDetect ? null : Imaging.detectQuad(small);
   const auto = !!(corners || hintCorners);
   corners = corners || hintCorners || Imaging.FULL();
   return {
@@ -609,9 +899,9 @@ async function importFiles(files) {
   return out;
 }
 /** Lấy ảnh: camera trong app (nếu được) hoặc camera/thư viện của máy */
-async function acquire(source) {
+async function acquire(source, mode = 'doc') {
   if (source === 'camera' && State.settings.liveCam !== false && Camera.supported()) {
-    const pages = await Camera.open({ mode: 'doc', importBlob });
+    const pages = await Camera.open({ mode, importBlob });
     if (pages) return { pages, live: true };
     toast('Không mở được camera trong app — chuyển sang camera của máy', 3500);
   }
@@ -621,7 +911,8 @@ async function acquire(source) {
 
 /** opts: { source:'camera'|'gallery', docId?, assetCode?, onDone? } */
 async function startScan(opts) {
-  const { pages, live } = await acquire(opts.source);
+  if (opts.mode === 'qr' && !(State.settings.liveCam !== false && Camera.supported())) { await Codes.fromImage(); return; }
+  const { pages, live } = await acquire(opts.source, opts.mode);
   if (!pages.length) return;
   Scan.pages = pages; Scan.cur = 0; Scan.opts = opts; Scan.previewCache.clear(); Scan.saved = false; Scan.panel = null;
   openScanner();
@@ -648,11 +939,12 @@ async function addScanPages(source) {
   if (pages.length === 1 && (!live || !pages[0].auto) && pages[0].kind === 'doc') openCrop(Scan.cur);
 }
 async function previewOf(p) {
-  const sig = JSON.stringify([p.kind, p.corners, p.parts && p.parts.map(x => x.corners), p.rot, p.filter, p.half, p.adj, p.erase]);
+  const sig = JSON.stringify([p.kind, p.photoSize, p.corners, p.parts && p.parts.map(x => x.corners), p.rot, p.filter, p.half, p.adj, p.erase]);
   const c = Scan.previewCache.get(p.key);
   if (c && c.sig === sig) return c.canvas;
   let canvas;
   if (p.kind === 'id') canvas = Imaging.renderId(await Promise.all(p.parts.map(x => Imaging.blobToCanvas(x.small))), p, 1300);
+  else if (p.kind === 'photo') canvas = Imaging.renderPhoto(await Imaging.blobToCanvas(p.small), p, 1200);
   else canvas = Imaging.render(await Imaging.blobToCanvas(p.small), p, p.half ? 1800 : 1100);
   Scan.previewCache.set(p.key, { sig, canvas });
   return canvas;
@@ -715,7 +1007,7 @@ async function drawScanner() {
   root.replaceChildren(...[
     el('div', { class: 'sc-top' },
       el('button', { class: 'icon-btn', 'aria-label': 'Hủy', onclick: () => Layers.back() }, icon('close')),
-      el('div', { class: 'sc-title' }, editing ? 'Sửa trang' : `Trang ${Scan.cur + 1} / ${Scan.pages.length}` + (p.kind === 'id' ? ' · CCCD' : p.half ? (p.half === 'L' ? ' · trái' : ' · phải') : '')),
+      el('div', { class: 'sc-title' }, editing ? 'Sửa trang' : `Trang ${Scan.cur + 1} / ${Scan.pages.length}` + (p.kind === 'id' ? (p.spec === 'passport' ? ' · Hộ chiếu' : ' · CCCD') : p.kind === 'photo' ? ' · Ảnh thẻ ' + (p.photoSize || '3x4').replace('x', '×') : p.table ? ' · Bảng biểu' : p.half ? (p.half === 'L' ? ' · trái' : ' · phải') : '')),
       el('button', { class: 'sc-done', onclick: finishScan }, icon('check'), editing ? 'Lưu' : Scan.opts.docId ? 'Thêm' : 'Lưu')),
     stage,
     Scan.panel === 'adj' ? adjustPanel(p) : el('div', { class: 'sc-filters', role: 'toolbar', 'aria-label': 'Bộ lọc' }, FILTERS.map(([k, label]) => el('button', {
@@ -724,11 +1016,15 @@ async function drawScanner() {
     }, label))),
     el('div', { class: 'sc-tools' },
       tool('crop', 'Cắt khung', () => openCrop(Scan.cur)),
+      tool('person', 'Cỡ ' + (p.photoSize || '3x4').replace('x', '×'), async () => {
+        const v = await menuSheet('Cỡ ảnh thẻ', Object.keys(Imaging.PHOTO).map(k => ({ icon: 'person', label: k.replace('x', ' × ') + ' cm', value: k })));
+        if (v) { p.photoSize = v; State.settings.photoSize = v; saveSettings(); drawScanner(); }
+      }, p.kind !== 'photo'),
       tool('rotate', 'Xoay', () => { p.rot = ((p.rot || 0) + 1) % 4; p.erase = []; drawScanner(); }),
       tool('wand', 'Chỉnh ảnh', () => { Scan.panel = Scan.panel === 'adj' ? null : 'adj'; drawScanner(); }),
       tool('erase', 'Tẩy', () => openErase(p)),
-      tool('book', p.half ? 'Gộp đôi' : 'Tách đôi', () => splitToggle(Scan.cur), editing || p.kind === 'id'),
-      tool('idcard', 'Ghép CCCD', () => joinIdCard(Scan.cur), editing || p.kind === 'id' || p.half || !next || next.kind === 'id' || next.half),
+      tool('book', p.half ? 'Gộp đôi' : 'Tách đôi', () => splitToggle(Scan.cur), editing || p.kind !== 'doc'),
+      tool('idcard', 'Ghép CCCD', () => joinIdCard(Scan.cur), editing || p.kind !== 'doc' || p.half || !next || next.kind !== 'doc' || next.half),
       tool('layers', 'Áp tất cả', () => { const f = p.filter, a = p.adj; Scan.pages.forEach(x => { x.filter = f; x.adj = a ? { ...a } : null; }); toast('Đã áp bộ lọc & chỉnh ảnh cho mọi trang'); drawScanner(); }, Scan.pages.length < 2),
       tool('trash', 'Xóa trang', async () => {
         if (Scan.pages.length === 1) { Layers.back(); return; }
@@ -939,6 +1235,7 @@ async function openCrop(index) {
 async function renderFullPage(p, maxSide) {
   let out;
   if (p.kind === 'id') out = Imaging.renderId(await Promise.all(p.parts.map(x => Imaging.blobToCanvas(x.src))), p, maxSide * 1.2);
+  else if (p.kind === 'photo') out = Imaging.renderPhoto(await Imaging.blobToCanvas(p.src), p, 1800);
   else out = Imaging.render(await Imaging.blobToCanvas(p.src), p, p.half ? maxSide * 1.6 : maxSide);
   const final = p.annots && p.annots.length ? await Annotate.bake(out, p.annots) : out;
   const q = 0.92;
@@ -950,7 +1247,7 @@ async function renderFullPage(p, maxSide) {
   };
 }
 function pageRecord(p, r) {
-  const rec = { ...r, kind: p.kind || 'doc', rot: p.rot || 0, filter: p.filter, half: p.half || null, group: p.group || null, adj: p.adj || null, erase: p.erase || [], annots: p.annots || [], words: null };
+  const rec = { ...r, kind: p.kind || 'doc', spec: p.spec || null, photoSize: p.photoSize || null, table: !!p.table, rot: p.rot || 0, filter: p.filter, half: p.half || null, group: p.group || null, adj: p.adj || null, erase: p.erase || [], annots: p.annots || [], words: null };
   if (p.kind === 'id') { rec.sources = p.parts.map(x => x.src); rec.parts = p.parts.map(x => ({ corners: x.corners })); rec.source = null; }
   else { rec.source = p.src; rec.corners = p.corners; }
   return rec;
@@ -1015,11 +1312,10 @@ async function finishScan() {
   }
 }
 async function smallOf(blob) { return Imaging.toBlob(Imaging.scaleCanvas(await Imaging.blobToCanvas(blob), 1100), 'image/jpeg', 0.9); }
-async function editPage(doc, page, onDone) {
-  Busy.show('Đang mở trang…');
+async function recToScan(page) {
   let sp;
-  const common = { key: page.id, rot: page.rot || 0, filter: page.filter || 'magic', adj: page.adj || null, erase: page.erase || [], annots: page.annots || [], auto: true };
-  try {
+  const common = { key: page.id, rot: page.rot || 0, filter: page.filter || 'magic', adj: page.adj || null, erase: page.erase || [], annots: page.annots || [], auto: true, spec: page.spec || null, photoSize: page.photoSize || null, table: !!page.table };
+  {
     if (page.kind === 'id' && page.sources) {
       const parts = await Promise.all(page.sources.map(async (s, i) => ({ src: s, small: await smallOf(s), corners: page.parts[i].corners, auto: true })));
       sp = { ...common, kind: 'id', parts, src: parts[0].src, small: parts[0].small };
@@ -1027,8 +1323,29 @@ async function editPage(doc, page, onDone) {
       const source = page.source || page.base || page.image;
       sp = { ...common, kind: 'doc', src: source, small: await smallOf(source), corners: page.source ? (page.corners || Imaging.FULL()) : Imaging.FULL(), half: page.source ? page.half : null };
       if (!page.source) { sp.filter = 'original'; sp.rot = 0; }
+      if (page.kind === 'photo' && page.source) sp.kind = 'photo';
     }
-  } finally { Busy.hide(); }
+  }
+  return sp;
+}
+/** Xoay nhanh 90° một trang đã lưu (dựng lại từ ảnh gốc, giữ chất lượng) */
+async function quickRotate(doc, page) {
+  Busy.show('Đang xoay trang…');
+  try {
+    const sp = await recToScan(page);
+    sp.rot = ((sp.rot || 0) + 1) % 4; sp.erase = [];
+    const r = await renderFullPage(sp, QUALITY[State.settings.quality] || 2000);
+    await DB.put('pages', { ...page, ...pageRecord(sp, r) });
+    forgetPage(page.id);
+    const d = await DB.get('docs', doc.id); if (d.ocr) delete d.ocr[page.id];
+    d.updatedAt = Date.now(); await DB.put('docs', d); await loadAll();
+  } catch (e) { toast('Không xoay được: ' + e.message); }
+  finally { Busy.hide(); }
+}
+async function editPage(doc, page, onDone) {
+  Busy.show('Đang mở trang…');
+  let sp;
+  try { sp = await recToScan(page); } finally { Busy.hide(); }
   Scan.pages = [sp];
   Scan.cur = 0; Scan.opts = { pageId: page.id, onDone }; Scan.previewCache.clear(); Scan.saved = false; Scan.panel = null;
   openScanner();
@@ -1059,51 +1376,83 @@ async function deliver(files, title) {
   else if (v === 'dl') v2();
   async function v2() { for (const f of files) { downloadBlob(f, f.name); await sleep(300); } toast(files.length > 1 ? `Đã tải ${files.length} ảnh` : `Đã tải ${files[0].name}`); }
 }
-async function exportDoc(doc) {
+const FORMATS = [['pdf', 'PDF'], ['word', 'Word'], ['xlsx', 'Excel'], ['pptx', 'PPT'], ['jpg', 'Ảnh'], ['txt', 'TXT']];
+/** Xuất tài liệu. fmt: định dạng mở sẵn; preset: { compress, watermark, askPw } */
+async function exportDoc(doc, fmt = 'pdf', preset = {}) {
   const s = State.settings;
-  const o = { fmt: 'pdf', size: s.pdfSize, textLayer: true, password: '', compress: false, images: false };
+  const o = { fmt, size: s.pdfSize, textLayer: true, password: '', compress: !!preset.compress, images: false, watermark: preset.watermark || '', wmOn: !!preset.watermark, pages: null };
   const pages = await Promise.all(doc.pageIds.map(id => DB.get('pages', id)));
-  const hasWords = pages.every(p => p.words);
-  const hasText = doc.pageIds.every(id => doc.ocr?.[id] != null);
   const box = el('div', { class: 'exp-body' });
   const seg = (key, opts) => el('div', { class: 'seg', role: 'group' }, opts.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(o[key] === v), onclick: () => { o[key] = v; draw(); } }, l)));
   const sw = key => el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(!!o[key]), onclick: () => { o[key] = !o[key]; draw(); } });
   const row = (t, sub, ctrl) => el('div', { class: 'set-row' }, el('div', { class: 't' }, el('b', {}, t), sub && el('span', {}, sub)), ctrl);
   const pw = el('input', { type: 'text', id: 'exp-pw', placeholder: 'Để trống nếu không cần', autocomplete: 'off', 'data-noautofocus': '1', oninput: e => { o.password = e.target.value; } });
+  const wm = el('input', { type: 'text', id: 'exp-wm', value: o.watermark || 'BẢN SAO', autocomplete: 'off', 'data-noautofocus': '1', oninput: e => { o.watermark = e.target.value; } });
+  const sel = () => o.pages ? o.pages.length : doc.pageIds.length;
+  const pickPages = async () => {
+    const picked = new Set(o.pages || doc.pageIds);
+    const grid = el('div', { class: 'pick-pages' });
+    doc.pageIds.forEach((pid, i) => {
+      const img = el('div', { class: 'pimg' });
+      const b = el('button', { type: 'button', class: 'pp', 'aria-pressed': String(picked.has(pid)), onclick: () => { picked.has(pid) ? picked.delete(pid) : picked.add(pid); b.setAttribute('aria-pressed', String(picked.has(pid))); } }, img, el('span', {}, `Trang ${i + 1}`));
+      grid.append(b); thumbUrl(pid).then(u => { if (u) img.style.backgroundImage = `url("${u}")`; });
+    });
+    const ok = await sheet({ title: 'Chọn trang để xuất', body: grid, actions: [{ label: 'Tất cả', value: 'all' }, { label: 'Xong', kind: 'primary', value: () => picked.size ? 'ok' : (toast('Chọn ít nhất 1 trang'), undefined) }] });
+    if (ok === 'all') o.pages = null; else if (ok === 'ok') o.pages = doc.pageIds.filter(p => picked.has(p));
+  };
+  const needText = () => (o.fmt === 'pdf' && o.textLayer) || ['word', 'xlsx', 'txt'].includes(o.fmt);
   function draw() {
+    const ids = o.pages || doc.pageIds;
+    const hasWords = pages.filter(p => ids.includes(p.id)).every(p => p.words);
+    const hasText = ids.every(id => doc.ocr?.[id] != null);
     box.replaceChildren(...[
-      el('div', { class: 'exp-fmt' }, seg('fmt', [['pdf', 'PDF'], ['word', 'Word'], ['jpg', 'Ảnh JPG']])),
-      o.fmt === 'pdf' && el('div', { class: 'set-group' },
-        row('Khổ giấy', null, seg('size', [['a4', 'A4'], ['fit', 'Theo ảnh']])),
-        row('PDF tìm kiếm được', hasWords ? 'Kèm lớp chữ ẩn: tìm, bôi đen, sao chép chữ trong PDF' : 'Sẽ nhận dạng chữ trước khi xuất (lần đầu mất vài giây/trang)', sw('textLayer')),
-        row('Nén nhỏ dung lượng', 'Hợp gửi Zalo, email; ảnh kém nét hơn một chút', sw('compress')),
-        el('div', { class: 'set-row' }, el('div', { class: 'field', style: 'flex:1' }, el('label', { for: 'exp-pw' }, 'Mật khẩu mở file (tùy chọn)'), pw))),
-      o.fmt === 'word' && el('div', { class: 'set-group' },
-        row('Kèm ảnh các trang', 'Ảnh trang gốc đặt trước phần chữ', sw('images')),
-        el('div', { class: 'set-row' }, el('div', { class: 't' }, el('span', {}, hasText ? 'Chữ lấy từ kết quả nhận dạng. Font Times New Roman 13, lề trái 3 cm.' : 'Tài liệu chưa nhận dạng chữ — app sẽ nhận dạng trước khi tạo file Word.')))),
-      o.fmt === 'jpg' && el('p', { class: 'muted', style: 'margin:0' }, `Xuất ${doc.pageIds.length} ảnh JPG, mỗi trang một ảnh.`),
+      el('div', { class: 'exp-fmt' }, seg('fmt', FORMATS)),
+      el('div', { class: 'set-group' },
+        el('button', { class: 'set-row', type: 'button', onclick: async () => { await pickPages(); draw(); } }, el('div', { class: 't' }, el('b', {}, 'Trang xuất'), el('span', {}, o.pages ? `${sel()} / ${doc.pageIds.length} trang đã chọn` : `Tất cả ${doc.pageIds.length} trang`)), icon('right')),
+        o.fmt === 'pdf' && row('Khổ giấy', null, seg('size', [['a4', 'A4'], ['fit', 'Theo ảnh']])),
+        o.fmt === 'pdf' && row('PDF tìm kiếm được', hasWords ? 'Kèm lớp chữ ẩn: tìm, bôi đen, sao chép chữ' : 'Sẽ nhận dạng chữ trước khi xuất', sw('textLayer')),
+        (o.fmt === 'pdf' || o.fmt === 'jpg') && row('Nén nhỏ dung lượng', 'Hợp gửi Zalo, email', sw('compress')),
+        ['pdf', 'jpg', 'word', 'pptx'].includes(o.fmt) && row('Đóng dấu mờ', 'Chữ mờ chéo trên mọi trang', sw('wmOn')),
+        o.wmOn && ['pdf', 'jpg', 'word', 'pptx'].includes(o.fmt) && el('div', { class: 'set-row' }, el('div', { class: 'field', style: 'flex:1' }, el('label', { for: 'exp-wm' }, 'Nội dung dấu mờ'), wm)),
+        o.fmt === 'pdf' && el('div', { class: 'set-row' }, el('div', { class: 'field', style: 'flex:1' }, el('label', { for: 'exp-pw' }, 'Mật khẩu mở file (tùy chọn)'), pw)),
+        o.fmt === 'word' && row('Kèm ảnh các trang', 'Ảnh trang gốc đặt trước phần chữ', sw('images')),
+        needText() && !hasText && el('div', { class: 'set-row' }, el('div', { class: 't' }, el('span', {}, 'Tài liệu chưa nhận dạng chữ — app sẽ nhận dạng trước khi tạo file.'))),
+        o.fmt === 'xlsx' && el('div', { class: 'set-row' }, el('div', { class: 't' }, el('span', {}, 'Mỗi trang thành 1 sheet. App dò đường kẻ bảng để chia ô; bảng không kẻ thì chia theo cột chữ. Hãy kiểm tra lại số liệu.'))),
+        o.fmt === 'pptx' && el('div', { class: 'set-row' }, el('div', { class: 't' }, el('span', {}, 'Mỗi trang thành 1 slide khổ A4.'))),
+      ),
     ].filter(Boolean));
-    pw.value = o.password;
+    pw.value = o.password; wm.value = o.watermark || 'BẢN SAO';
+    if (preset.askPw && o.fmt === 'pdf') setTimeout(() => pw.focus(), 80);
   }
   draw();
-  const go = await sheet({ title: 'Xuất tài liệu', sub: `${doc.name} · ${doc.pageIds.length} trang`, body: box, actions: [{ label: 'Hủy', value: null }, { label: 'Tạo file', kind: 'primary', value: true }] });
+  const go = await sheet({ title: 'Xuất tài liệu', sub: doc.name, body: box, actions: [{ label: 'Hủy', value: null }, { label: 'Tạo file', kind: 'primary', value: true }] });
   if (!go) return;
   try {
-    if ((o.fmt === 'pdf' && o.textLayer && !hasWords) || (o.fmt === 'word' && !hasText)) {
+    const ids = o.pages || doc.pageIds;
+    let d = { ...doc, pageIds: ids };
+    const hasWords = (await Promise.all(ids.map(id => DB.get('pages', id)))).every(p => p.words);
+    const hasText = ids.every(id => doc.ocr?.[id] != null);
+    if ((o.fmt === 'pdf' && o.textLayer && !hasWords) || (['word', 'xlsx', 'txt'].includes(o.fmt) && (!hasText || (o.fmt === 'xlsx' && !hasWords)))) {
       await runOcr(doc, true);
-      doc = await DB.get('docs', doc.id);
+      doc = await DB.get('docs', doc.id); d = { ...doc, pageIds: ids };
     }
-    const base = safeName(doc.name);
+    const base = safeName(doc.name) + (o.pages ? `_trang-${ids.map(id => doc.pageIds.indexOf(id) + 1).join('-')}`.slice(0, 40) : '');
+    const opts = { size: o.size, textLayer: o.textLayer, password: o.password, compress: o.compress, images: o.images, watermark: o.wmOn ? (o.watermark || 'BẢN SAO') : '' };
     let files;
     Busy.show('Đang tạo file…');
     const progress = (m, f) => Busy.update(m, f);
-    if (o.fmt === 'pdf') files = [new File([await Exporter.pdf(doc, { ...o, progress })], base + '.pdf', { type: 'application/pdf' })];
-    else if (o.fmt === 'word') files = [new File([await Exporter.word(doc, { images: o.images, progress })], base + '.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })];
+    if (o.fmt === 'pdf') files = [new File([await Exporter.pdf(d, { ...opts, progress })], base + '.pdf', { type: 'application/pdf' })];
+    else if (o.fmt === 'word') files = [new File([await Exporter.word(d, { images: o.images, watermark: opts.watermark, progress })], base + '.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })];
+    else if (o.fmt === 'xlsx') files = [new File([await Tables.docToXlsx(d, progress)], base + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })];
+    else if (o.fmt === 'pptx') files = [new File([await Exporter.pptx(d, { watermark: opts.watermark, progress })], base + '.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })];
+    else if (o.fmt === 'txt') files = [new File([ocrText(d)], base + '.txt', { type: 'text/plain' })];
     else {
       files = [];
-      for (let k = 0; k < doc.pageIds.length; k++) {
-        const p = await DB.get('pages', doc.pageIds[k]);
-        files.push(new File([p.image], `${base}_trang-${k + 1}.jpg`, { type: 'image/jpeg' }));
+      for (let k = 0; k < ids.length; k++) {
+        progress(`Đang xuất ảnh ${k + 1}/${ids.length}…`, k / ids.length);
+        const p = await DB.get('pages', ids[k]);
+        const img = await Exporter.pageImage(p, { compress: o.compress, watermark: opts.watermark });
+        files.push(new File([img.blob], `${safeName(doc.name)}_trang-${doc.pageIds.indexOf(ids[k]) + 1}.jpg`, { type: 'image/jpeg' }));
       }
     }
     Busy.hide();
@@ -1130,7 +1479,7 @@ async function getOcrWorker(lang) {
   return ocrWorker;
 }
 const OcrProgress = { set: null };
-async function runOcr(doc) {
+async function runOcr(doc, keepEdited = false) {
   Busy.show('Đang chuẩn bị nhận dạng chữ…');
   try {
     const w = await getOcrWorker(State.settings.ocrLang);
@@ -1140,8 +1489,10 @@ async function runOcr(doc) {
       const p = await DB.get('pages', doc.pageIds[k]);
       Busy.update(`Đang nhận dạng chữ trang ${k + 1}/${n}…`, k / n);
       OcrProgress.set = f => Busy.update(null, (k + f) / n);
-      const { data } = await w.recognize(p.image, {}, { text: true, blocks: true });
-      doc.ocr[p.id] = (data.text || '').replace(/[ \t]+\n/g, '\n').trim();
+      const src = Tables.stripLines(await Imaging.blobToCanvas(p.image));
+      const { data } = await w.recognize(src, {}, { text: true, blocks: true });
+      if (!(keepEdited && doc.ocrEdit?.[p.id])) doc.ocr[p.id] = (data.text || '').replace(/[ \t]+\n/g, '\n').trim();
+      if (!keepEdited && doc.ocrEdit) delete doc.ocrEdit[p.id];
       // vị trí từng từ (tỉ lệ 0..1) để tạo PDF tìm kiếm được
       const words = [];
       const push = wd => { const b = wd.bbox; const t = (wd.text || '').trim(); if (t && b) words.push([t, b.x0 / p.w, b.y0 / p.h, b.x1 / p.w, b.y1 / p.h]); };
@@ -1223,9 +1574,9 @@ async function moveDocs() {
 }
 async function deleteDocs() {
   const docs = [...State.sel].map(id => State.docs.find(d => d.id === id)).filter(Boolean);
-  if (!(await confirmBox(`Xóa ${docs.length} tài liệu?`, `${docs.reduce((n, d) => n + d.pageIds.length, 0)} trang ảnh sẽ bị xóa khỏi máy. Không khôi phục được.`))) return;
+  if (!(await confirmBox(`Chuyển ${docs.length} tài liệu vào thùng rác?`, 'Khôi phục được trong 30 ngày ở Công cụ → Thùng rác.', 'Chuyển vào thùng rác'))) return;
   for (const d of docs) await deleteDoc(d);
-  State.sel = null; renderDocs(); toast('Đã xóa');
+  State.sel = null; renderDocs(); toast('Đã chuyển vào thùng rác');
 }
 async function splitDoc(doc) {
   const picked = new Set();
@@ -1419,9 +1770,14 @@ async function renderSettings() {
     el('div', { class: 'set-group' },
       row('Ngôn ngữ', 'Chạy ngay trên máy, không gửi ảnh đi đâu', seg('ocrLang', [['vie', 'Tiếng Việt'], ['vie+eng', 'Việt + Anh']])),
       row('Tự nhận dạng khi lưu', 'Tìm được tài liệu theo nội dung ngay sau khi quét', sw('autoOcr'))),
+    el('div', { class: 'section-label' }, 'Bảo mật'),
+    el('div', { class: 'set-group' },
+      btnRow('lock', 'Khóa ứng dụng', 'Mã PIN 6 số, mở nhanh bằng vân tay; khóa từng tài liệu', () => Lock.settings())),
     el('div', { class: 'section-label' }, 'Dữ liệu trên máy'),
     el('div', { class: 'set-group' },
       el('div', { class: 'set-row' }, storage),
+      btnRow('trash', 'Thùng rác', State.trash.length ? `${State.trash.length} tài liệu — giữ 30 ngày` : 'Trống', openTrash),
+      btnRow('qr', 'Lịch sử quét mã', 'Các mã QR / mã vạch đã quét', () => Codes.openHistory()),
       btnRow('sign', 'Chữ ký đã lưu', 'Xem, thêm hoặc xóa chữ ký tay', () => Annotate.pickSignature()),
       btnRow('download', 'Sao lưu toàn bộ', 'Xuất 1 file .json chứa tài liệu, ảnh, thư mục, tài sản', backupAll),
       btnRow('upload', 'Khôi phục từ file sao lưu', 'Gộp vào dữ liệu hiện có, không xóa gì', restoreAll),
@@ -1532,23 +1888,32 @@ async function boot() {
   catch (e) { document.body.prepend(el('p', { style: 'padding:16px;color:var(--danger)' }, 'Trình duyệt không cho phép lưu dữ liệu (IndexedDB). Hãy tắt chế độ ẩn danh rồi mở lại.')); return; }
   await seedFolders();
   await loadAll();
+  // tự dọn thùng rác quá 30 ngày
+  for (const d of State.trash) if (Date.now() - d.deletedAt > 30 * 86400000) await deleteForever(d);
+  if (State.trash.length) await loadAll();
+  await Lock.atBoot();
   navigator.storage?.persist?.().catch(() => {});
 
   document.querySelectorAll('.tab[data-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.go)));
   $('#scan-btn').addEventListener('click', () => startScan({ source: 'camera' }));
-  $('#import-btn').addEventListener('click', () => startScan({ source: 'gallery' }));
   let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { State.q = e.target.value; renderDocs(); }, 120); });
+  $('#home-q').addEventListener('focus', e => { e.target.blur(); setTab('docs'); setTimeout(() => $('#q').focus(), 50); });
+  $('#settings-btn').addEventListener('click', () => setTab('settings'));
+  $('#sort-btn').addEventListener('click', chooseSort);
+  $('#view-btn').addEventListener('click', toggleView);
   $('#aq').addEventListener('input', e => { State.aq = e.target.value; renderAssets(); });
   $('#asset-add').addEventListener('click', () => editAsset());
   $('#asset-import').addEventListener('click', importAssets);
   $('#install-btn').addEventListener('click', doInstall);
   $('#support-btn').addEventListener('click', showSupport);
+  // nút hỗ trợ thu gọn thành biểu tượng khi cuộn, để không che danh sách
+  let lastY = 0; window.addEventListener('scroll', () => { const y = window.scrollY; $('#support-btn').classList.toggle('mini', y > 40 && y >= lastY - 2); lastY = y; }, { passive: true });
   $('#sel-btn').addEventListener('click', () => { if (State.sel) exitSel(); else { State.sel = new Set(); renderDocs(); } });
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#install-banner').hidden = false; if (State.tab === 'settings') renderSettings(); });
   window.addEventListener('appinstalled', () => { installEvt = null; $('#install-banner').hidden = true; toast('Đã cài XLM Scan'); });
 
   const start = location.hash.replace('#', '');
-  setTab(['assets', 'settings'].includes(start) ? start : 'docs');
+  setTab(TABS.includes(start) ? start : 'home');
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     // có bản mới → tự tải lại 1 lần để dùng ngay (không cần tắt hẳn app)
@@ -1568,4 +1933,3 @@ async function boot() {
     }).catch(() => {});
   }
 }
-boot();

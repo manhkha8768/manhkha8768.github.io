@@ -145,7 +145,7 @@ const Annotate = (() => {
   }
 
   /* ---------- trình ghi chú */
-  async function open(pageRec, onSave) {
+  async function open(pageRec, onSave, opts = {}) {
     const baseBlob = pageRec.base || pageRec.image;
     const baseImg = await Imaging.loadImage(baseBlob);
     const W = baseImg.naturalWidth, H = baseImg.naturalHeight;
@@ -171,7 +171,7 @@ const Annotate = (() => {
       bar);
     document.body.append(root);
     let saved = false;
-    Layers.push(() => { root.remove(); window.removeEventListener('resize', layout); });
+    Layers.push(() => { root.remove(); window.removeEventListener('resize', layout); if (!saved && opts.onClose) opts.onClose(); });
 
     function drawBar() {
       bar.replaceChildren(

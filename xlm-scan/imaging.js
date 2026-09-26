@@ -420,7 +420,7 @@ const Imaging = (() => {
     let sr = 0, sg = 0, sb = 0, sl = 0;
     for (let i = 0, j = 0; i < N; i += 7, j += 28) if (Nn[i] > 232) { sr += d[j]; sg += d[j + 1]; sb += d[j + 2]; sl += L[i]; }
     const wr = sr ? Math.min(1.6, sl / sr) : 1, wg = sg ? Math.min(1.6, sl / sg) : 1, wb = sb ? Math.min(1.6, sl / sb) : 1;
-    const white = type === 'bw' ? 200 : 222;           // từ ngưỡng này trở lên → trắng tinh
+    const white = type === 'bw' ? 200 : type === 'wb' ? 196 : 222;           // từ ngưỡng này trở lên → trắng tinh
     const black = Math.min(150, ink + 32); // từ ngưỡng này trở xuống → đen đậm
     // làm nét: bán kính theo kích thước ảnh
     const rad = Math.max(1, Math.round(Math.max(w, h) / 1400));
@@ -447,7 +447,7 @@ const Imaging = (() => {
         const k = 255 / BG[i], dl = sharp - Nn[i];
         let r = d[j] * wr * k + dl, g = d[j + 1] * wg * k + dl, b = d[j + 2] * wb * k + dl;
         const m = (r + g + b) / 3, chroma = Math.max(r, g, b) - Math.min(r, g, b);
-        const sat = chroma > 28 ? 1.45 : 1.0; // chỉ làm tươi vùng có màu thật (mộc, chữ ký), giữ chữ đen trung tính
+        const sat = chroma > 28 ? (type === 'wb' ? 2.0 : 1.45) : (type === 'wb' ? 1.25 : 1.0); // chỉ làm tươi vùng có màu thật (mộc, chữ ký), giữ chữ đen trung tính
         r = m + (r - m) * sat; g = m + (g - m) * sat; b = m + (b - m) * sat;
         d[j] = lut[Math.max(-128, Math.min(383, r | 0)) + 128];
         d[j + 1] = lut[Math.max(-128, Math.min(383, g | 0)) + 128];
@@ -531,10 +531,13 @@ const Imaging = (() => {
     c = half(c, page.half);
     return finish(c, page);
   }
-  /** CCCD / thẻ: nắn từng mặt về đúng tỉ lệ 85,6 × 53,98 mm rồi đặt lên trang A4 đúng kích thước thật */
+  /** Khổ giấy tờ đặt lên A4 theo kích thước thật (mm) */
+  const CARD = { id: [85.6, 53.98], passport: [125, 88] };
+  /** CCCD / thẻ / hộ chiếu: nắn từng mặt về đúng tỉ lệ rồi đặt lên trang A4 đúng kích thước thật */
   function renderId(srcs, page, maxSide) {
     const H = Math.round(maxSide), W = Math.round(H / 1.41421);
-    const cw = Math.round(W * 85.6 / 210), ch = Math.round(cw * 53.98 / 85.6);
+    const [mw, mh] = CARD[page.spec] || CARD.id;
+    const cw = Math.round(W * mw / 210), ch = Math.round(cw * mh / mw);
     const out = canvas(W, H), x = out.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     const gap = Math.round(H * 0.05), top = Math.round(H * 0.1);
@@ -550,6 +553,51 @@ const Imaging = (() => {
     });
     return finish(rotate(out, page.rot || 0), page);
   }
+  /** Ảnh thẻ: cắt đúng tỉ lệ rồi xếp nhiều ảnh lên tờ 10 × 15 cm để in (có đường cắt) */
+  const PHOTO = { '2x3': [20, 30], '3x4': [30, 40], '4x6': [40, 60] };
+  function renderPhoto(src, page, maxSide) {
+    const [pw, ph] = PHOTO[page.photoSize] || PHOTO['3x4'];
+    const SW = 150, SH = 100; // tờ 15 × 10 cm nằm ngang
+    const dpmm = Math.min(12, maxSide / SW);
+    const W = Math.round(SW * dpmm), H = Math.round(SH * dpmm);
+    let c = warp(src, page.corners, Math.max(pw, ph) * dpmm * 1.3);
+    c = rotate(c, page.rot || 0);
+    c = finish(c, page);
+    const out = canvas(W, H), x = out.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    const gap = 2 * dpmm, cols = Math.max(1, Math.floor((SW - 4) / (pw + 2))), rows = Math.max(1, Math.floor((SH - 4) / (ph + 2)));
+    const ox = (W - (cols * pw * dpmm + (cols - 1) * gap)) / 2, oy = (H - (rows * ph * dpmm + (rows - 1) * gap)) / 2;
+    // cắt giữa ảnh theo đúng tỉ lệ ảnh thẻ
+    const ar = pw / ph; let sw = c.width, sh = c.height, sx = 0, sy = 0;
+    if (sw / sh > ar) { sw = sh * ar; sx = (c.width - sw) / 2; } else { sh = sw / ar; sy = (c.height - sh) / 2; }
+    x.imageSmoothingQuality = 'high';
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const px = ox + k * (pw * dpmm + gap), py = oy + r * (ph * dpmm + gap);
+      x.drawImage(c, sx, sy, sw, sh, px, py, pw * dpmm, ph * dpmm);
+      x.strokeStyle = 'rgba(0,0,0,.25)'; x.lineWidth = 1; x.strokeRect(px - 0.5, py - 0.5, pw * dpmm + 1, ph * dpmm + 1);
+    }
+    return out;
+  }
+  /** Dựng trang theo loại: tài liệu, thẻ/hộ chiếu, ảnh thẻ */
+  function renderAny(srcs, page, maxSide) {
+    if (page.kind === 'id') return renderId(srcs, page, maxSide);
+    if (page.kind === 'photo') return renderPhoto(srcs[0], page, maxSide);
+    return render(srcs[0], page, maxSide);
+  }
+  /** Đóng dấu mờ chéo trang */
+  function watermark(c, text, opacity = 0.16) {
+    if (!text) return c;
+    const x = c.getContext('2d'), W = c.width, H = c.height;
+    const fs = Math.max(14, Math.round(Math.min(W, H) / 14));
+    x.save(); x.globalAlpha = opacity; x.fillStyle = '#C62828';
+    x.font = `700 ${fs}px "Be Vietnam Pro", Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.translate(W / 2, H / 2); x.rotate(-Math.atan2(H, W));
+    const diag = Math.hypot(W, H), step = fs * 4.2;
+    const unit = text + '        ', line = unit.repeat(Math.ceil(diag / Math.max(1, x.measureText(unit).width)) + 1);
+    for (let y = -diag / 2, r = 0; y < diag / 2; y += step, r++) x.fillText(line, r % 2 ? fs * 2 : 0, y);
+    x.restore();
+    return c;
+  }
 
-  return { canvas, ctx2d, loadImage, blobToCanvas, scaleCanvas, toBlob, detectQuad, warp, rotate, applyFilter, adjust, applyErase, paperColor, render, renderId, FULL, INSET };
+  return { renderPhoto, renderAny, watermark, CARD, PHOTO, canvas, ctx2d, loadImage, blobToCanvas, scaleCanvas, toBlob, detectQuad, warp, rotate, applyFilter, adjust, applyErase, paperColor, render, renderId, FULL, INSET };
 })();
