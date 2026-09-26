@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "vn.xlm.scan",
+        "sha256_cert_fingerprints": ["7B:E9:AE:CC:4B:D0:1D:D1:5A:66:3F:5A:24:06:E7:19:79:B2:A8:79:35:31:02:4D:3B:75:42:8F:15:A7:40:D6"]
+      }
+    }]
