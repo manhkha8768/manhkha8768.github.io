@@ -1,7 +1,7 @@
 'use strict';
 /* XLM Scan — quét tài liệu cho Công ty Xây lắp Mỏ – TKV
    Dữ liệu chỉ nằm trên máy (IndexedDB). */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const SUPPORT_PHONE = '0396228768';
 
 /* =========================================================== tiện ích */
@@ -75,6 +75,7 @@ const IC = {
   right: '<path d="M9 18l6-6-6-6"/>',
   doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
   zoom: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
+  sync: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
   sort: '<path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -133,14 +134,26 @@ const DB = {
   },
   get(s, k) { return this._req(s, 'readonly', o => o.get(k)); },
   all(s) { return this._req(s, 'readonly', o => o.getAll()); },
-  put(s, v, k) { return this._req(s, 'readwrite', o => k === undefined ? o.put(v) : o.put(v, k)); },
-  del(s, k) { return this._req(s, 'readwrite', o => o.delete(k)); },
-  clear(s) { return this._req(s, 'readwrite', o => o.clear()); },
-  putMany(s, arr) { return this._req(s, 'readwrite', o => { arr.forEach(v => o.put(v)); }); },
+  // ghi dấu thời điểm sửa để đồng bộ nhiều máy (fromSync = bản ghi vừa kéo từ máy chủ về)
+  _touch(s, fromSync) {
+    if (fromSync || s === 'kv') return;
+    if (s === 'folders' || s === 'assets') this._req('kv', 'readwrite', o => o.put(Date.now(), 'mt:' + s));
+    if (typeof Sync !== 'undefined') Sync.schedule();
+  },
+  put(s, v, k, fromSync) {
+    if ((s === 'docs' || s === 'pages') && v && !fromSync) v.mt = Date.now();
+    const r = this._req(s, 'readwrite', o => k === undefined ? o.put(v) : o.put(v, k)); this._touch(s, fromSync); return r;
+  },
+  del(s, k, fromSync) { const r = this._req(s, 'readwrite', o => o.delete(k)); this._touch(s, fromSync); return r; },
+  clear(s) { const r = this._req(s, 'readwrite', o => o.clear()); this._touch(s); return r; },
+  putMany(s, arr, fromSync) {
+    if ((s === 'docs' || s === 'pages') && !fromSync) { const t = Date.now(); arr.forEach(v => { v.mt = t; }); }
+    const r = this._req(s, 'readwrite', o => { arr.forEach(v => o.put(v)); }); this._touch(s, fromSync); return r;
+  },
 };
 
 /* =========================================================== trạng thái */
-const DEFAULT_SETTINGS = { pdfSize: 'a4', filter: 'magic', quality: 'std', ocrLang: 'vie', autoOcr: false, liveCam: true, autoCapture: true, sort: 'updated', sortDir: 'desc', view: 'list', photoSize: '3x4', trTo: 'en' };
+const DEFAULT_SETTINGS = { pdfSize: 'a4', filter: 'magic', quality: 'std', ocrLang: 'vie', autoOcr: false, liveCam: true, autoCapture: true, autoSync: false, syncSource: false, sort: 'updated', sortDir: 'desc', view: 'list', photoSize: '3x4', trTo: 'en' };
 const FILTERS = [['magic', 'Tăng cường'], ['bw', 'Trắng đen'], ['gray', 'Xám'], ['wb', 'Bảng trắng'], ['original', 'Ảnh gốc']];
 const QUALITY = { std: 2800, high: 3600 };
 const State = { docs: [], trash: [], folders: [], assets: [], settings: { ...DEFAULT_SETTINGS }, folder: 'all', tab: 'home', q: '', aq: '' };
@@ -457,6 +470,8 @@ function toolGroups() {
       ['lock', 'Khóa ứng dụng', () => Lock.settings()],
       ['trash', 'Thùng rác', openTrash],
       ['qr', 'Lịch sử mã QR', () => Codes.openHistory()],
+      ['sync', 'Đồng bộ nhiều máy', () => Sync.accountSheet()],
+      ['link', 'Chia sẻ bằng link', () => pickDocThen('Chọn tài liệu cần chia sẻ', d => Sync.shareLink(d))],
       ['download', 'Sao lưu', backupAll],
     ]],
   ];
@@ -636,6 +651,7 @@ async function docMenu(doc, render) {
   const v = await menuSheet(doc.name, [
     { icon: 'share', label: 'Xuất PDF / Word / Excel / PPT / ảnh', value: 'export' },
     { icon: 'translate', label: 'Dịch nội dung', value: 'translate' },
+    { icon: 'link', label: 'Chia sẻ bằng link', value: 'link' },
     { icon: 'print', label: 'In', value: 'print' },
     doc.pageIds.length > 1 && { icon: 'split', label: 'Trích trang ra tài liệu mới', value: 'split' },
     { icon: 'text', label: 'Nhận dạng chữ lại', value: 'ocr' },
@@ -646,6 +662,7 @@ async function docMenu(doc, render) {
   if (v === 'export') exportDoc(doc);
   else if (v === 'translate') { let d = doc; if (!ocrText(d)) { await runOcr(d); d = await DB.get('docs', d.id); } if (ocrText(d)) Translate.open(ocrText(d), 'Dịch: ' + d.name); }
   else if (v === 'print') printDoc(doc);
+  else if (v === 'link') Sync.shareLink(doc);
   else if (v === 'split') { await splitDoc(doc); render(); }
   else if (v === 'ocr') { await runOcr(doc); render(); }
   else if (v === 'lock') { await Lock.toggleDocLock(doc); render(); }
@@ -656,6 +673,7 @@ async function deleteDoc(doc) {
   doc.deletedAt = Date.now(); await DB.put('docs', doc); await loadAll();
 }
 async function deleteForever(doc) {
+  await Sync.tombstone(doc);
   for (const p of doc.pageIds) { await DB.del('pages', p); forgetPage(p); }
   await DB.del('docs', doc.id);
 }
@@ -1757,6 +1775,12 @@ async function renderSettings() {
   const row = (title, sub, ctrl) => el('div', { class: 'set-row' }, el('div', { class: 't' }, el('b', {}, title), sub && el('span', {}, sub)), ctrl);
   const btnRow = (ic, title, sub, onclick, danger) => el('button', { class: 'set-row', type: 'button', onclick, style: danger ? 'color:var(--danger)' : '' }, icon(ic), el('div', { class: 't' }, el('b', {}, title), sub && el('span', {}, sub)));
   const storage = el('div', { class: 't' }, el('b', {}, 'Dung lượng đã dùng'), el('span', {}, 'Đang tính…'));
+  const acct = btnRow('sync', 'Đồng bộ nhiều máy', 'Đang kiểm tra…', () => Sync.accountSheet().then(renderSettings));
+  Sync.user().then(async u => {
+    const st = (await DB.get('kv', 'syncState')) || {}, c = await Sync.cfg();
+    if (!c.url) { acct.querySelector('.t span').textContent = 'Chưa cấu hình máy chủ — bấm để nhập'; return; }
+    acct.querySelector('.t span').textContent = u ? `${u.email} · ${State.settings.autoSync ? 'tự động' : 'thủ công'}${st.last ? ' · lần cuối ' + fmtDate(st.last) : ''}` : 'Chưa đăng nhập — bấm để đăng nhập';
+  }).catch(() => { acct.querySelector('.t span').textContent = 'Chưa cấu hình máy chủ'; });
   const body = $('#settings-body');
   body.replaceChildren(
     el('div', { class: 'section-label' }, 'Quét & xuất file'),
@@ -1770,6 +1794,9 @@ async function renderSettings() {
     el('div', { class: 'set-group' },
       row('Ngôn ngữ', 'Chạy ngay trên máy, không gửi ảnh đi đâu', seg('ocrLang', [['vie', 'Tiếng Việt'], ['vie+eng', 'Việt + Anh']])),
       row('Tự nhận dạng khi lưu', 'Tìm được tài liệu theo nội dung ngay sau khi quét', sw('autoOcr'))),
+    el('div', { class: 'section-label' }, 'Tài khoản & đồng bộ'),
+    el('div', { class: 'set-group' }, acct,
+      btnRow('link', 'Máy chủ đồng bộ', 'Địa chỉ Supabase — quản trị viên nhập một lần', () => Sync.configSheet().then(renderSettings))),
     el('div', { class: 'section-label' }, 'Bảo mật'),
     el('div', { class: 'set-group' },
       btnRow('lock', 'Khóa ứng dụng', 'Mã PIN 6 số, mở nhanh bằng vân tay; khóa từng tài liệu', () => Lock.settings())),
@@ -1892,6 +1919,7 @@ async function boot() {
   for (const d of State.trash) if (Date.now() - d.deletedAt > 30 * 86400000) await deleteForever(d);
   if (State.trash.length) await loadAll();
   await Lock.atBoot();
+  Sync.atBoot();
   navigator.storage?.persist?.().catch(() => {});
 
   document.querySelectorAll('.tab[data-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.go)));

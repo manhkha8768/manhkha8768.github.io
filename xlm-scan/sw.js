@@ -1,9 +1,9 @@
 /* XLM Scan — chạy offline */
-const VERSION = 'xlmscan-v2.0.0';
+const VERSION = 'xlmscan-v2.1.0';
 const SHELL = [
-  './', 'index.html', 'app.css', 'app.js', 'imaging.js', 'camera.js', 'annotate.js', 'exporter.js', 'tools.js', 'lock.js', 'manifest.webmanifest',
+  './', 'index.html', 'app.css', 'app.js', 'imaging.js', 'camera.js', 'annotate.js', 'exporter.js', 'tools.js', 'lock.js', 'sync.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js', 'vendor/jsQR.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js', 'vendor/fonts/pdf-vn.ttf', 'vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js',
+  'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js', 'vendor/jsQR.js', 'vendor/supabase.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js', 'vendor/fonts/pdf-vn.ttf', 'vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js',
    "fonts/be-vietnam-pro-latin-400-normal.woff2",  "fonts/be-vietnam-pro-latin-600-normal.woff2",  "fonts/be-vietnam-pro-latin-700-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-400-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-600-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-700-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-400-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-600-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-700-normal.woff2",  "fonts/jetbrains-mono-latin-500-normal.woff2",  "fonts/jetbrains-mono-vietnamese-500-normal.woff2",
 ];
 // Bộ nhận dạng chữ (~12 MB) tải nền sau khi cài, để dùng được cả khi mất mạng
