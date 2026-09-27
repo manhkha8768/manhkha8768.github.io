@@ -1,7 +1,7 @@
 'use strict';
 /* XLM Scan — quét tài liệu cho Công ty Xây lắp Mỏ – TKV
    Dữ liệu chỉ nằm trên máy (IndexedDB). */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const SUPPORT_PHONE = '0396228768';
 
 /* =========================================================== tiện ích */
@@ -40,13 +40,16 @@ function fmtBytes(b) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 function safeName(s) { return (s || 'tai-lieu').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'tai-lieu'; }
+const _scripts = new Map();
 function loadScript(src) {
-  return new Promise((res, rej) => {
-    if (document.querySelector(`script[data-src="${src}"]`)) return res();
+  if (_scripts.has(src)) return _scripts.get(src);
+  const pr = new Promise((res, rej) => {
     const s = el('script', { src, 'data-src': src });
-    s.onload = res; s.onerror = () => { s.remove(); rej(new Error('Không tải được ' + src)); };
+    s.onload = res; s.onerror = () => { s.remove(); _scripts.delete(src); rej(new Error('Không tải được ' + src)); };
     document.head.append(s);
   });
+  _scripts.set(src, pr);
+  return pr;
 }
 const abs = p => new URL(p, location.href).href;
 
@@ -68,6 +71,7 @@ const IC = {
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
+  ai: '<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M19 15l.8 1.7 1.7.8-1.7.8L19 20l-.8-1.7-1.7-.8 1.7-.8zM5 16l.6 1.2 1.2.6-1.2.6L5 19.6l-.6-1.2-1.2-.6 1.2-.6z"/>',
   wand: '<path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M12.2 6.2 11 5M3 21l9-9"/>',
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -956,16 +960,91 @@ async function addScanPages(source) {
   drawScanner();
   if (pages.length === 1 && (!live || !pages[0].auto) && pages[0].kind === 'doc') openCrop(Scan.cur);
 }
-async function previewOf(p) {
-  const sig = JSON.stringify([p.kind, p.photoSize, p.corners, p.parts && p.parts.map(x => x.corners), p.rot, p.filter, p.half, p.adj, p.erase]);
-  const c = Scan.previewCache.get(p.key);
-  if (c && c.sig === sig) return c.canvas;
-  let canvas;
-  if (p.kind === 'id') canvas = Imaging.renderId(await Promise.all(p.parts.map(x => Imaging.blobToCanvas(x.small))), p, 1300);
-  else if (p.kind === 'photo') canvas = Imaging.renderPhoto(await Imaging.blobToCanvas(p.small), p, 1200);
-  else canvas = Imaging.render(await Imaging.blobToCanvas(p.small), p, p.half ? 1800 : 1100);
-  Scan.previewCache.set(p.key, { sig, canvas });
+/* ---------- dựng trang (có các bước AI) */
+const aiOn = p => !!((p.ai && (p.ai.sharp || p.ai.deblur)) || (p.kind === 'photo' && p.bg));
+let aiWarned = false;
+async function aiStep(fn, fallback) {
+  try { return await fn(); }
+  catch (e) {
+    console.error(e);
+    if (!aiWarned) { aiWarned = true; toast('AI không chạy được trên máy này: ' + (e.message || e) + '. Dùng ảnh thường.'); }
+    return fallback;
+  }
+}
+/** Ảnh đã nắn phẳng + khử mờ bằng AI (nặng) — tính 1 lần cho mỗi khung cắt, dùng lại khi xem & khi lưu */
+async function deblurredRaw(p, progress) {
+  const sig = JSON.stringify([p.corners, p.rot, p.half]);
+  if (p._dbl && p._dbl.sig === sig) return p._dbl.canvas;
+  const raw = Imaging.renderRaw(await Imaging.blobToCanvas(p.src), p, 1600);
+  const canvas = await Ai.deblur(raw, progress, 1600);
+  p._dbl = { sig, canvas };
   return canvas;
+}
+function copyCanvas(c) { const o = Imaging.canvas(c.width, c.height); o.getContext('2d').drawImage(c, 0, 0); return o; }
+/** full: dùng ảnh gốc (khi lưu) · noAi: bỏ qua bước AI (ảnh nhỏ ở dải trang) */
+async function renderPage(p, maxSide, { full = false, noAi = false, progress } = {}) {
+  const load = b => Imaging.blobToCanvas(b);
+  const ai = !noAi && p.ai || {};
+  if (p.kind === 'id') {
+    let c = Imaging.renderId(await Promise.all(p.parts.map(x => load(full ? x.src : x.small))), p, maxSide);
+    if (ai.sharp) c = await aiStep(() => Ai.sharpen(c, maxSide, progress), c);
+    return c;
+  }
+  if (p.kind === 'photo') {
+    let c = Imaging.photoCrop(await load(full ? p.src : p.small), p, maxSide);
+    if (p.bg && !noAi) c = await aiStep(() => Ai.replaceBg(c, p.bg), c);
+    return Imaging.photoSheet(c, p, maxSide);
+  }
+  const side = p.half ? maxSide * 1.6 : maxSide;
+  let c = null;
+  if (ai.deblur) c = await aiStep(async () => copyCanvas(Imaging.scaleCanvas(await deblurredRaw(p, progress), side)), null);
+  if (!c) c = Imaging.renderRaw(await load(full ? p.src : p.small), p, side);
+  c = Imaging.finish(c, p);
+  if (ai.sharp) c = await aiStep(() => Ai.sharpen(c, Math.min(side, 2800), progress), c);
+  return c;
+}
+/** Chạy fn có hiện bảng tiến độ khi trang bật AI */
+async function withAiBusy(p, fn) {
+  if (!aiOn(p)) return fn();
+  Busy.show('AI đang xử lý ảnh…');
+  try { return await fn((m, f) => Busy.update(m, f)); } finally { Busy.hide(); }
+}
+async function previewOf(p, noAi) {
+  const sig = JSON.stringify([p.kind, p.photoSize, p.corners, p.parts && p.parts.map(x => x.corners), p.rot, p.filter, p.half, p.adj, p.erase, p.ink, noAi ? 0 : [p.ai, p.bg]]);
+  const cache = noAi ? Scan.thumbCache || (Scan.thumbCache = new Map()) : Scan.previewCache;
+  const c = cache.get(p.key);
+  if (c && c.sig === sig) return c.promise;
+  const side = p.kind === 'id' ? 1300 : p.kind === 'photo' ? 1200 : 1100;
+  const promise = noAi ? renderPage(p, side, { noAi: true }) : withAiBusy(p, progress => renderPage(p, side, { progress }));
+  cache.set(p.key, { sig, promise });
+  promise.catch(() => cache.delete(p.key));
+  return promise;
+}
+/** Bảng AI: làm nét, khử mờ, xóa mực, đổi nền ảnh thẻ */
+function aiPanel(p) {
+  const ai = p.ai || {}, ink = p.ink || {};
+  const chip = (label, on, flip, sub) => el('button', { class: 'fchip', type: 'button', 'aria-pressed': String(!!on), title: sub || '', onclick: flip }, label);
+  const set = (k, v) => { p.ai = { ...(p.ai || {}), [k]: v }; drawScanner(); };
+  const setInk = (k, v) => { p.ink = { ...(p.ink || {}), [k]: v }; drawScanner(); };
+  const rows = [];
+  if (p.kind === 'photo') {
+    rows.push(el('div', { class: 'ai-row' }, el('span', {}, 'Nền ảnh thẻ'),
+      el('div', { class: 'ai-chips' }, [['', 'Giữ nguyên'], ['white', 'Trắng'], ['blue', 'Xanh'], ['gray', 'Xám']].map(([k, l]) =>
+        chip(l, (p.bg || '') === k, () => { p.bg = k; drawScanner(); })))));
+  } else {
+    rows.push(el('div', { class: 'ai-row' }, el('span', {}, 'Làm rõ'),
+      el('div', { class: 'ai-chips' },
+        chip('AI làm nét chữ', ai.sharp, () => set('sharp', !ai.sharp)),
+        p.kind === 'doc' ? chip('Khử mờ rung tay', ai.deblur, () => set('deblur', !ai.deblur)) : null)));
+    rows.push(el('div', { class: 'ai-row' }, el('span', {}, 'Xóa nét bút'),
+      el('div', { class: 'ai-chips' },
+        chip('Mực xanh / tím', ink.blue, () => setInk('blue', !ink.blue)),
+        chip('Mực đỏ', ink.red, () => setInk('red', !ink.red)))));
+  }
+  rows.push(el('div', { class: 'adj-acts' },
+    el('button', { class: 'fchip', type: 'button', onclick: () => { p.ai = null; p.ink = null; p.bg = ''; drawScanner(); } }, 'Tắt hết'),
+    el('button', { class: 'fchip', type: 'button', onclick: () => { Scan.panel = null; drawScanner(); } }, 'Xong')));
+  return el('div', { class: 'adj-panel ai-panel' }, el('div', { class: 'ai-note' }, 'AI chạy ngay trên máy, ảnh không gửi đi đâu.'), ...rows);
 }
 async function updatePreview() {
   const root = Scan.root; if (!root) return;
@@ -1028,7 +1107,7 @@ async function drawScanner() {
       el('div', { class: 'sc-title' }, editing ? 'Sửa trang' : `Trang ${Scan.cur + 1} / ${Scan.pages.length}` + (p.kind === 'id' ? (p.spec === 'passport' ? ' · Hộ chiếu' : ' · CCCD') : p.kind === 'photo' ? ' · Ảnh thẻ ' + (p.photoSize || '3x4').replace('x', '×') : p.table ? ' · Bảng biểu' : p.half ? (p.half === 'L' ? ' · trái' : ' · phải') : '')),
       el('button', { class: 'sc-done', onclick: finishScan }, icon('check'), editing ? 'Lưu' : Scan.opts.docId ? 'Thêm' : 'Lưu')),
     stage,
-    Scan.panel === 'adj' ? adjustPanel(p) : el('div', { class: 'sc-filters', role: 'toolbar', 'aria-label': 'Bộ lọc' }, FILTERS.map(([k, label]) => el('button', {
+    Scan.panel === 'adj' ? adjustPanel(p) : Scan.panel === 'ai' ? aiPanel(p) : el('div', { class: 'sc-filters', role: 'toolbar', 'aria-label': 'Bộ lọc' }, FILTERS.map(([k, label]) => el('button', {
       class: 'fchip', type: 'button', 'aria-pressed': String(p.filter === k),
       onclick: () => { p.filter = k; drawScanner(); },
     }, label))),
@@ -1039,11 +1118,12 @@ async function drawScanner() {
         if (v) { p.photoSize = v; State.settings.photoSize = v; saveSettings(); drawScanner(); }
       }, p.kind !== 'photo'),
       tool('rotate', 'Xoay', () => { p.rot = ((p.rot || 0) + 1) % 4; p.erase = []; drawScanner(); }),
+      tool('ai', aiOn(p) || (p.ink && (p.ink.blue || p.ink.red)) ? 'AI ✓' : 'AI', () => { Scan.panel = Scan.panel === 'ai' ? null : 'ai'; drawScanner(); }),
       tool('wand', 'Chỉnh ảnh', () => { Scan.panel = Scan.panel === 'adj' ? null : 'adj'; drawScanner(); }),
       tool('erase', 'Tẩy', () => openErase(p)),
       tool('book', p.half ? 'Gộp đôi' : 'Tách đôi', () => splitToggle(Scan.cur), editing || p.kind !== 'doc'),
       tool('idcard', 'Ghép CCCD', () => joinIdCard(Scan.cur), editing || p.kind !== 'doc' || p.half || !next || next.kind !== 'doc' || next.half),
-      tool('layers', 'Áp tất cả', () => { const f = p.filter, a = p.adj; Scan.pages.forEach(x => { x.filter = f; x.adj = a ? { ...a } : null; }); toast('Đã áp bộ lọc & chỉnh ảnh cho mọi trang'); drawScanner(); }, Scan.pages.length < 2),
+      tool('layers', 'Áp tất cả', () => { const f = p.filter, a = p.adj, ai = p.ai, ink = p.ink; Scan.pages.forEach(x => { x.filter = f; x.adj = a ? { ...a } : null; x.ink = ink ? { ...ink } : null; x.ai = ai ? { ...ai, deblur: x.kind === 'doc' && ai.deblur } : null; if (x.kind === 'photo' && p.kind === 'photo') x.bg = p.bg; }); toast('Đã áp bộ lọc, chỉnh ảnh & AI cho mọi trang'); drawScanner(); }, Scan.pages.length < 2),
       tool('trash', 'Xóa trang', async () => {
         if (Scan.pages.length === 1) { Layers.back(); return; }
         Scan.pages.splice(Scan.cur, 1); Scan.cur = Math.max(0, Scan.cur - 1); drawScanner();
@@ -1055,7 +1135,7 @@ async function drawScanner() {
       const t = el('button', { class: 'sthumb', type: 'button', 'data-key': q.key, 'aria-label': `Trang ${i + 1}`, 'aria-current': String(i === Scan.cur), onclick: () => { Scan.cur = i; drawScanner(); } }, el('span', {}, i + 1));
       if (q.thumb) t.style.backgroundImage = `url("${q.thumb}")`;
       strip.append(t);
-      previewOf(q).then(c => { t.style.backgroundImage = `url("${c.toDataURL('image/jpeg', 0.5)}")`; });
+      previewOf(q, aiOn(q) && i !== Scan.cur).then(c => { t.style.backgroundImage = `url("${c.toDataURL('image/jpeg', 0.5)}")`; });
     });
     strip.append(
       el('button', { class: 'sadd', type: 'button', 'aria-label': 'Chụp thêm trang', onclick: () => addScanPages('camera') }, icon('camera')),
@@ -1251,10 +1331,8 @@ async function openCrop(index) {
 
 /* ---------- lưu kết quả quét */
 async function renderFullPage(p, maxSide) {
-  let out;
-  if (p.kind === 'id') out = Imaging.renderId(await Promise.all(p.parts.map(x => Imaging.blobToCanvas(x.src))), p, maxSide * 1.2);
-  else if (p.kind === 'photo') out = Imaging.renderPhoto(await Imaging.blobToCanvas(p.src), p, 1800);
-  else out = Imaging.render(await Imaging.blobToCanvas(p.src), p, p.half ? maxSide * 1.6 : maxSide);
+  const side = p.kind === 'id' ? maxSide * 1.2 : p.kind === 'photo' ? 1800 : maxSide;
+  const out = await renderPage(p, side, { full: true, progress: aiOn(p) ? (m, f) => Busy.update(m, f) : null });
   const final = p.annots && p.annots.length ? await Annotate.bake(out, p.annots) : out;
   const q = 0.92;
   return {
@@ -1265,7 +1343,7 @@ async function renderFullPage(p, maxSide) {
   };
 }
 function pageRecord(p, r) {
-  const rec = { ...r, kind: p.kind || 'doc', spec: p.spec || null, photoSize: p.photoSize || null, table: !!p.table, rot: p.rot || 0, filter: p.filter, half: p.half || null, group: p.group || null, adj: p.adj || null, erase: p.erase || [], annots: p.annots || [], words: null };
+  const rec = { ...r, kind: p.kind || 'doc', spec: p.spec || null, photoSize: p.photoSize || null, table: !!p.table, rot: p.rot || 0, filter: p.filter, half: p.half || null, group: p.group || null, adj: p.adj || null, ai: p.ai || null, ink: p.ink || null, bg: p.bg || '', erase: p.erase || [], annots: p.annots || [], words: null };
   if (p.kind === 'id') { rec.sources = p.parts.map(x => x.src); rec.parts = p.parts.map(x => ({ corners: x.corners })); rec.source = null; }
   else { rec.source = p.src; rec.corners = p.corners; }
   return rec;
@@ -1332,7 +1410,7 @@ async function finishScan() {
 async function smallOf(blob) { return Imaging.toBlob(Imaging.scaleCanvas(await Imaging.blobToCanvas(blob), 1100), 'image/jpeg', 0.9); }
 async function recToScan(page) {
   let sp;
-  const common = { key: page.id, rot: page.rot || 0, filter: page.filter || 'magic', adj: page.adj || null, erase: page.erase || [], annots: page.annots || [], auto: true, spec: page.spec || null, photoSize: page.photoSize || null, table: !!page.table };
+  const common = { key: page.id, rot: page.rot || 0, filter: page.filter || 'magic', adj: page.adj || null, ai: page.ai || null, ink: page.ink || null, bg: page.bg || '', erase: page.erase || [], annots: page.annots || [], auto: true, spec: page.spec || null, photoSize: page.photoSize || null, table: !!page.table };
   {
     if (page.kind === 'id' && page.sources) {
       const parts = await Promise.all(page.sources.map(async (s, i) => ({ src: s, small: await smallOf(s), corners: page.parts[i].corners, auto: true })));
@@ -1340,7 +1418,7 @@ async function recToScan(page) {
     } else {
       const source = page.source || page.base || page.image;
       sp = { ...common, kind: 'doc', src: source, small: await smallOf(source), corners: page.source ? (page.corners || Imaging.FULL()) : Imaging.FULL(), half: page.source ? page.half : null };
-      if (!page.source) { sp.filter = 'original'; sp.rot = 0; }
+      if (!page.source) { sp.filter = 'original'; sp.rot = 0; sp.ai = null; sp.ink = null; }
       if (page.kind === 'photo' && page.source) sp.kind = 'photo';
     }
   }

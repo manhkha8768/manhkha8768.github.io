@@ -1,7 +1,7 @@
 /* XLM Scan — chạy offline */
-const VERSION = 'xlmscan-v2.1.0';
+const VERSION = 'xlmscan-v2.2.0';
 const SHELL = [
-  './', 'index.html', 'app.css', 'app.js', 'imaging.js', 'camera.js', 'annotate.js', 'exporter.js', 'tools.js', 'lock.js', 'sync.js', 'manifest.webmanifest',
+  './', 'index.html', 'app.css', 'app.js', 'imaging.js', 'camera.js', 'annotate.js', 'exporter.js', 'tools.js', 'lock.js', 'sync.js', 'ai.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js', 'vendor/jsQR.js', 'vendor/supabase.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js', 'vendor/fonts/pdf-vn.ttf', 'vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js',
    "fonts/be-vietnam-pro-latin-400-normal.woff2",  "fonts/be-vietnam-pro-latin-600-normal.woff2",  "fonts/be-vietnam-pro-latin-700-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-400-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-600-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-700-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-400-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-600-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-700-normal.woff2",  "fonts/jetbrains-mono-latin-500-normal.woff2",  "fonts/jetbrains-mono-vietnamese-500-normal.woff2",
@@ -13,6 +13,9 @@ const HEAVY = [
   'vendor/tesseract/lang/vie.traineddata.gz',
   'vendor/tesseract/lang/eng.traineddata.gz',
 ];
+// Thư viện/mô hình AI (từ CDN) để ở kho riêng, không bị xóa khi cập nhật app
+const AI_CACHE = 'xlmscan-ai-1';
+const isAi = u => u.startsWith('https://cdn.jsdelivr.net/npm/');
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
@@ -23,20 +26,20 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
+    for (const k of await caches.keys()) if (k !== VERSION && k !== AI_CACHE) await caches.delete(k);
     await self.clients.claim();
   })());
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (req.method !== 'GET' || (new URL(req.url).origin !== location.origin && !isAi(req.url))) return;
   e.respondWith((async () => {
-    const c = await caches.open(VERSION);
+    const c = await caches.open(isAi(req.url) ? AI_CACHE : VERSION);
     const hit = await c.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await c.match('index.html') : null);
     if (hit) return hit;
     try {
       const res = await fetch(req);
-      if (res.ok) c.put(req, res.clone());
+      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
       return res;
     } catch (err) {
       if (req.mode === 'navigate') return c.match('index.html');

@@ -519,17 +519,42 @@ const Imaging = (() => {
     o.getContext('2d').drawImage(c, side === 'R' ? w : 0, 0, o.width, c.height, 0, 0, o.width, c.height);
     return o;
   }
+  /** Xóa nét mực xanh / đỏ (chữ viết tay, gạch xóa), giữ chữ in đen — chạy trên ảnh màu trước bộ lọc */
+  function removeInk(c, ink) {
+    if (!ink || (!ink.blue && !ink.red)) return c;
+    const w = c.width, h = c.height, x = ctx2d(c), id = x.getImageData(0, 0, w, h), d = id.data;
+    const m = new Uint8Array(w * h);
+    for (let i = 0, j = 0; i < w * h; i++, j += 4) {
+      const r = d[j], g = d[j + 1], b = d[j + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx - mn < 28 || mx < 45) continue;                        // xám / đen: chữ in → giữ
+      if (ink.blue && b > r + 18 && b >= g - 8) m[i] = 1;           // xanh, tím
+      else if (ink.red && r > g + 35 && r > b + 20) m[i] = 1;        // đỏ, hồng
+    }
+    // nới rộng 1 điểm ảnh để xóa sạch viền mực
+    const mm = new Uint8Array(m);
+    for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) { const i = y * w + xx; if (m[i]) { mm[i - 1] = mm[i + 1] = mm[i - w] = mm[i + w] = 1; } }
+    const pc = paperColor(c).match(/\d+/g).map(Number);
+    for (let i = 0, j = 0; i < w * h; i++, j += 4) if (mm[i]) {
+      const r = d[j], g = d[j + 1], b = d[j + 2];
+      if (Math.max(r, g, b) - Math.min(r, g, b) < 28 && Math.max(r, g, b) < 90) continue; // chữ in đen bị mực đè
+      d[j] = pc[0]; d[j + 1] = pc[1]; d[j + 2] = pc[2];
+    }
+    x.putImageData(id, 0, 0);
+    return c;
+  }
   function finish(c, page) {
+    c = removeInk(c, page.ink);
     c = applyFilter(c, page.filter || 'magic');
     c = adjust(c, page.adj);
     return applyErase(c, page.erase);
   }
   /** Dựng ảnh trang hoàn chỉnh từ ảnh gốc + thông số chỉnh */
-  function render(src, page, maxSide) {
+  function render(src, page, maxSide) { return finish(renderRaw(src, page, maxSide), page); }
+  /** Chỉ nắn phẳng + xoay + tách đôi (chưa lọc) — để chèn bước AI khử mờ vào giữa */
+  function renderRaw(src, page, maxSide) {
     let c = warp(src, page.corners, maxSide);
     c = rotate(c, page.rot || 0);
-    c = half(c, page.half);
-    return finish(c, page);
+    return half(c, page.half);
   }
   /** Khổ giấy tờ đặt lên A4 theo kích thước thật (mm) */
   const CARD = { id: [85.6, 53.98], passport: [125, 88] };
@@ -555,14 +580,21 @@ const Imaging = (() => {
   }
   /** Ảnh thẻ: cắt đúng tỉ lệ rồi xếp nhiều ảnh lên tờ 10 × 15 cm để in (có đường cắt) */
   const PHOTO = { '2x3': [20, 30], '3x4': [30, 40], '4x6': [40, 60] };
-  function renderPhoto(src, page, maxSide) {
+  function renderPhoto(src, page, maxSide) { return photoSheet(photoCrop(src, page, maxSide), page, maxSide); }
+  /** Ảnh thẻ đơn (đã cắt, xoay, lọc) — để chèn bước AI tách nền */
+  function photoCrop(src, page, maxSide) {
+    const [pw, ph] = PHOTO[page.photoSize] || PHOTO['3x4'];
+    const dpmm = Math.min(12, maxSide / 150);
+    let c = warp(src, page.corners, Math.max(pw, ph) * dpmm * 1.3);
+    c = rotate(c, page.rot || 0);
+    return finish(c, page);
+  }
+  /** Xếp ảnh thẻ lên tờ 10 × 15 cm */
+  function photoSheet(c, page, maxSide) {
     const [pw, ph] = PHOTO[page.photoSize] || PHOTO['3x4'];
     const SW = 150, SH = 100; // tờ 15 × 10 cm nằm ngang
     const dpmm = Math.min(12, maxSide / SW);
     const W = Math.round(SW * dpmm), H = Math.round(SH * dpmm);
-    let c = warp(src, page.corners, Math.max(pw, ph) * dpmm * 1.3);
-    c = rotate(c, page.rot || 0);
-    c = finish(c, page);
     const out = canvas(W, H), x = out.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     const gap = 2 * dpmm, cols = Math.max(1, Math.floor((SW - 4) / (pw + 2))), rows = Math.max(1, Math.floor((SH - 4) / (ph + 2)));
@@ -599,5 +631,5 @@ const Imaging = (() => {
     return c;
   }
 
-  return { renderPhoto, renderAny, watermark, CARD, PHOTO, canvas, ctx2d, loadImage, blobToCanvas, scaleCanvas, toBlob, detectQuad, warp, rotate, applyFilter, adjust, applyErase, paperColor, render, renderId, FULL, INSET };
+  return { renderPhoto, photoCrop, photoSheet, renderRaw, finish, removeInk, renderAny, watermark, CARD, PHOTO, canvas, ctx2d, loadImage, blobToCanvas, scaleCanvas, toBlob, detectQuad, warp, rotate, applyFilter, adjust, applyErase, paperColor, render, renderId, FULL, INSET };
 })();
