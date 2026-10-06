@@ -1,25 +1,17 @@
-XLM Scan 1.0.0 – Quét tài liệu cho Công ty Xây lắp Mỏ – TKV
-================================================================
-
-ĐƯA LÊN MẠNG (1 lần, khoảng 2 phút)
-1. Giải nén file zip, được thư mục "xlmscan".
-2. Mở https://app.netlify.com/drop (đăng nhập tài khoản Netlify đang dùng cho QLTS-XLM).
-3. Kéo thả cả thư mục "xlmscan" vào trang đó. Netlify cấp 1 địa chỉ https://....netlify.app
-   (Có thể đổi tên trong Site settings, VD: xlm-scan.netlify.app.)
-   Lưu ý: app phải chạy qua https thì mới mở được camera và cài lên điện thoại.
-
-CÀI LÊN ĐIỆN THOẠI
-- Android (Chrome): mở địa chỉ trên → bấm "Cài đặt" ở banner, hoặc menu ⋮ → "Thêm vào màn hình chính".
-- iPhone (Safari): nút Chia sẻ → "Thêm vào MH chính".
-- Mở app 1 lần khi có mạng; sau đó dùng được cả khi mất mạng (kể cả nhận dạng chữ).
-
-NHẬP DANH SÁCH TÀI SẢN
-- Tab Tài sản → nút tải xuống (↓) → dán các cột từ Excel: Mã | Tên | Phân xưởng | Loại.
-- Xem file mẫu: mau-danh-sach-tai-san.tsv
-
-DỮ LIỆU
-- Ảnh và tài liệu chỉ lưu trong trình duyệt của điện thoại đó, không gửi đi đâu.
-- Gỡ app hoặc xóa dữ liệu trình duyệt sẽ mất tài liệu → dùng Cài đặt → "Sao lưu toàn bộ" định kỳ.
-
-CẬP NHẬT PHIÊN BẢN
-- Sửa code rồi đổi VERSION trong sw.js (VD xlmscan-v1.0.1), kéo thả lại lên Netlify (Deploys → kéo thả).
+XLM Scan 3.1 – Hướng dẫn đưa lên mạng & cài lên điện thoại
+==========================================================
+1) Đưa lên GitHub Pages (giữ nguyên link manhkha8768.github.io/xlm-scan):
+   - Vào github.com/manhkha8768/xlm-scan → xoá các tệp cũ (hoặc ghi đè).
+   - Add file → Upload files → kéo TOÀN BỘ nội dung thư mục này (index.html, sw.js,
+     manifest.webmanifest, css/, js/, lib/, icons/) → Commit.
+   - Đợi 1–2 phút, mở lại link. Lần đầu nên kéo xuống làm mới 2 lần để nhận bản mới.
+   (Cloudflare Pages cũng được: kéo cả thư mục vào mục Upload assets.)
+2) Cài lên điện thoại:
+   - Android (Chrome): mở link → bấm "Cài đặt" trên trang chủ app (hoặc menu ⋮ → Cài đặt ứng dụng).
+   - iPhone (Safari): nút Chia sẻ → "Thêm vào MH chính".
+   - Lần đầu mở camera: cho phép quyền Camera.
+3) Lưu ý:
+   - Dữ liệu chỉ lưu trên máy. Vào Cài đặt → Sao lưu định kỳ (tệp .json).
+   - OCR tiếng Việt chạy hoàn toàn trên máy, không cần mạng (tải ~10 MB từ chính trang app ở lần dùng đầu).
+   - Bấm giữ icon app trên Android có lối tắt "Quét tài liệu" và "Quét CCCD 2 mặt".
+Hỗ trợ: 0396228768 (Zalo)

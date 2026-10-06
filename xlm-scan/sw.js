@@ -1,49 +1,37 @@
-/* XLM Scan — chạy offline */
-const VERSION = 'xlmscan-v2.2.0';
-const SHELL = [
-  './', 'index.html', 'app.css', 'app.js', 'imaging.js', 'camera.js', 'annotate.js', 'exporter.js', 'tools.js', 'lock.js', 'sync.js', 'ai.js', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js', 'vendor/jsQR.js', 'vendor/supabase.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js', 'vendor/fonts/pdf-vn.ttf', 'vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js',
-   "fonts/be-vietnam-pro-latin-400-normal.woff2",  "fonts/be-vietnam-pro-latin-600-normal.woff2",  "fonts/be-vietnam-pro-latin-700-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-400-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-600-normal.woff2",  "fonts/be-vietnam-pro-latin-ext-700-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-400-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-600-normal.woff2",  "fonts/be-vietnam-pro-vietnamese-700-normal.woff2",  "fonts/jetbrains-mono-latin-500-normal.woff2",  "fonts/jetbrains-mono-vietnamese-500-normal.woff2",
-];
-// Bộ nhận dạng chữ (~12 MB) tải nền sau khi cài, để dùng được cả khi mất mạng
-const HEAVY = [
-  'vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
-  'vendor/tesseract/core/tesseract-core-lstm.wasm.js',
-  'vendor/tesseract/lang/vie.traineddata.gz',
-  'vendor/tesseract/lang/eng.traineddata.gz',
-];
-// Thư viện/mô hình AI (từ CDN) để ở kho riêng, không bị xóa khi cập nhật app
-const AI_CACHE = 'xlmscan-ai-1';
-const isAi = u => u.startsWith('https://cdn.jsdelivr.net/npm/');
-self.addEventListener('install', e => {
-  e.waitUntil((async () => {
-    const c = await caches.open(VERSION);
-    await c.addAll(SHELL);
-    self.skipWaiting();
-    Promise.all(HEAVY.map(u => c.add(u).catch(() => {})));
-  })());
+/* XLM Scan service worker – chạy offline */
+const VER = 'xlm-scan-v3.1.0';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/imgproc.js', 'js/services.js', 'js/scan.js', 'js/editor.js', 'js/app.js',
+  'lib/jspdf.umd.min.js', 'lib/tesseract.min.js', 'lib/worker.min.js', 'lib/pdf-lib.min.js', 'lib/pdf.min.js', 'lib/pdf.worker.min.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(VER).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
-self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== VERSION && k !== AI_CACHE) await caches.delete(k);
-    await self.clients.claim();
-  })());
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VER && k !== 'xlm-cdn').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
-self.addEventListener('fetch', e => {
+self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || (new URL(req.url).origin !== location.origin && !isAi(req.url))) return;
-  e.respondWith((async () => {
-    const c = await caches.open(isAi(req.url) ? AI_CACHE : VERSION);
-    const hit = await c.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await c.match('index.html') : null);
-    if (hit) return hit;
-    try {
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  // thư viện OCR từ CDN: lưu lại để dùng offline
+  if (/cdn\.jsdelivr\.net|tessdata\.projectnaptha\.com|unpkg\.com/.test(url.host)) {
+    e.respondWith(caches.open('xlm-cdn').then(async (c) => {
+      const hit = await c.match(req);
+      if (hit) return hit;
       const res = await fetch(req);
-      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
+      if (res.ok) c.put(req, res.clone());
       return res;
-    } catch (err) {
-      if (req.mode === 'navigate') return c.match('index.html');
-      throw err;
-    }
-  })());
+    }));
+    return;
+  }
+  if (url.origin !== location.origin) return;
+  // trang chính: ưu tiên mạng để nhận bản mới, mất mạng thì dùng bộ nhớ đệm
+  if (req.mode === 'navigate') {
+    e.respondWith(fetch(req).then((res) => { caches.open(VER).then((c) => c.put('index.html', res.clone())); return res; })
+      .catch(() => caches.match('index.html')));
+    return;
+  }
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => {
+    const net = fetch(req).then((res) => { if (res.ok) caches.open(VER).then((c) => c.put(req, res.clone())); return res; }).catch(() => hit);
+    return hit || net;
+  }));
 });
