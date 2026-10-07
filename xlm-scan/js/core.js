@@ -1,6 +1,6 @@
 /* XLM Scan – lõi: tiện ích, biểu tượng, CSDL, điều hướng, hộp thoại */
 'use strict';
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const SUPPORT_PHONE = '0396228768';
 
 /* ---------- tiện ích DOM ---------- */
@@ -166,7 +166,7 @@ const DB = {
 
 /* ---------- cài đặt ---------- */
 const DEFAULT_SETTINGS = {
-  pdfSize: 'a4', pdfMargin: 6, quality: 'high', defFilter: 'magic', autoCapture: true,
+  pdfSize: 'a4', pdfMargin: 6, quality: 'high', defFilter: 'magic', autoCapture: true, hiRes: 1, autoDeskew: 1,
   workshops: ['Phân xưởng Đào lò 1', 'Phân xưởng Đào lò 2', 'Phân xưởng Cơ điện', 'Phân xưởng Vận tải', 'Phòng Cơ điện', 'Phòng Kế toán'],
   kinds: ['Biên bản bàn giao', 'Biên bản kiểm kê', 'Lý lịch thiết bị', 'Hóa đơn', 'Phiếu xuất/nhập kho', 'Hợp đồng', 'Công văn', 'Bản vẽ', 'CCCD / Giấy tờ', 'Khác'],
   sort: 'updated',

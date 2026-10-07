@@ -581,7 +581,7 @@ async function openViewer(doc, start, onChange) {
   }
   function edit() {
     const p = pages[idx];
-    const item = { pageId: p.id, orig: p.orig, quad: p.quad.map((x) => [...x]), filter: p.filter, rot: p.rot, flip: p.flip, adj: p.adj, ann: p.ann, aspect: p.aspect, text: p.text };
+    const item = { pageId: p.id, orig: p.orig, quad: p.quad.map((x) => [...x]), filter: p.filter, rot: p.rot, flip: p.flip, adj: p.adj, ann: p.ann, aspect: p.aspect, half: p.half, deskew: p.deskew ?? undefined, text: p.text, _qsig: JSON.stringify(p.quad) };
     cropScreen([item], { docId: doc.id, editPage: true, mode: doc.type === 'id' ? 'id' : 'doc', onDone: refresh });
   }
   async function ocrOne() {
@@ -683,7 +683,9 @@ function viewSettings() {
       h('div', { class: 'it' }, ic('image'), 'Chất lượng ảnh', sel('quality', [['high', 'Cao (in ấn)'], ['med', 'Vừa'], ['low', 'Nhẹ (gửi Zalo)']])),
       h('div', { class: 'it' }, ic('pdf'), 'Khổ trang PDF', sel('pdfSize', [['a4', 'A4'], ['fit', 'Theo ảnh']])),
       h('div', { class: 'it' }, ic('crop'), 'Lề PDF (A4)', sel('pdfMargin', [[0, '0 mm'], [6, '6 mm'], [12, '12 mm']])),
-      h('div', { class: 'it' }, ic('camera'), 'Tự chụp khi giữ yên', sel('autoCapture', [[1, 'Bật'], [0, 'Tắt']]))),
+      h('div', { class: 'it' }, ic('camera'), 'Tự chụp khi giữ yên', sel('autoCapture', [[1, 'Bật'], [0, 'Tắt']])),
+      h('div', { class: 'it' }, ic('scan'), 'Chụp độ phân giải tối đa', sel('hiRes', [[1, 'Bật'], [0, 'Tắt']])),
+      h('div', { class: 'it' }, ic('text'), 'Tự làm thẳng dòng chữ', sel('autoDeskew', [[1, 'Bật'], [0, 'Tắt']]))),
     h('div', { class: 'section' }, h('h3', null, 'Danh mục')),
     h('div', { class: 'card' },
       h('button', { class: 'it', onclick: () => editList('workshops', 'Danh sách phân xưởng / đơn vị') }, ic('grid'), 'Phân xưởng / đơn vị', h('span', { class: 'v' }, S.workshops.length)),

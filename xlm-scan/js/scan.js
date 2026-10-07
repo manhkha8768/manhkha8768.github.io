@@ -1,11 +1,12 @@
 /* XLM Scan – quy trình quét: camera → cắt góc → bộ lọc → lưu */
 'use strict';
-const FILTERS = [['orig', 'Gốc'], ['magic', 'Nâng cao'], ['noshadow', 'Không bóng'], ['bright', 'Làm sáng'], ['gray', 'Thang xám'], ['bw', 'Đen trắng'], ['eco', 'Tiết kiệm mực'], ['nohand', 'Xoá bút màu']];
+const FILTERS = [['orig', 'Gốc'], ['magic', 'Nâng cao'], ['noshadow', 'Không bóng'], ['bright', 'Làm sáng'], ['gray', 'Thang xám'], ['bw', 'Đen trắng'], ['eco', 'Tiết kiệm mực'], ['nohand', 'Xoá bút màu'], ['wb', 'Bảng trắng']];
 const ID_ASPECT = 85.6 / 54;
 const maxSideFor = () => (S.quality === 'high' ? 2400 : S.quality === 'med' ? 1800 : 1400);
+const origMax = () => (S.quality === 'high' ? 3200 : 2600);
 
 async function makeItem(blob, mode, opts, hintQuad) {
-  const norm = await IP.normalizeOriginal(blob, 2600);
+  const norm = await IP.normalizeOriginal(blob, origMax());
   let quad = null;
   if (mode !== 'photo') {
     const bmp = await IP.load(norm.blob);
@@ -18,14 +19,16 @@ async function makeItem(blob, mode, opts, hintQuad) {
     orig: norm.blob, w: norm.w, h: norm.h, quad,
     filter: mode === 'photo' ? 'orig' : opts.filter || S.defFilter, rot: 0,
     aspect: mode === 'id' ? ID_ASPECT : null,
+    split: mode === 'book',
   };
 }
+const BLUR_LIMIT = 40; // phương sai Laplacian dưới mức này coi là ảnh mờ
 
 /* ================= CAMERA ================= */
 async function openCamera(opts = {}) {
   let mode = opts.mode || 'doc';
   const items = [];
-  let stream = null, track = null, timer = null, closed = false, busy = false, stable = 0, lastQ = null, cool = 0, torch = false;
+  let stream = null, track = null, timer = null, closed = false, busy = false, stable = 0, lastQ = null, cool = 0, torch = false, detBusy = false, shownQ = null, sharpOK = true, capQ = null;
   let autoOn = S.autoCapture && mode !== 'photo';
 
   const video = h('video', { playsinline: true, muted: true, autoplay: true });
@@ -40,7 +43,7 @@ async function openCamera(opts = {}) {
   const shutter = h('button', { class: 'shutter', onclick: () => capture() }, h('i'));
   const autoBtn = h('button', { class: 'toggle', onclick: () => { autoOn = !autoOn; S.autoCapture = autoOn ? 1 : 0; saveSettings(); paintTop(); } }, 'Tự chụp');
   const torchBtn = h('button', { class: 'ib hidden', onclick: toggleTorch }, ic('flash'));
-  const modeBtns = [['doc', 'Tài liệu'], ['id', 'CCCD 2 mặt'], ['photo', 'Ảnh thường']].map(([m, l]) =>
+  const modeBtns = [['doc', 'Tài liệu'], ['id', 'CCCD 2 mặt'], ['book', 'Sách 2 trang'], ['photo', 'Ảnh thường']].map(([m, l]) =>
     h('button', { 'data-m': m, onclick: () => setMode(m) }, l));
   const screen = h('div', { class: 'screen dark' },
     h('div', { class: 'sbar' }, h('button', { class: 'ib', onclick: () => closeLayer() }, ic('close')),
@@ -59,7 +62,7 @@ async function openCamera(opts = {}) {
     modeBtns.forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
     idframe.classList.toggle('hidden', mode !== 'id');
     if (mode === 'id') hint.textContent = items.length === 0 ? 'Mặt TRƯỚC thẻ – đặt vừa khung' : 'Mặt SAU thẻ – đặt vừa khung';
-    else if (stream) hint.textContent = mode === 'photo' ? 'Chụp ảnh nguyên bản' : (autoOn ? 'Giữ yên máy để tự chụp' : 'Căn tài liệu trong khung hình');
+    else if (stream) hint.textContent = mode === 'photo' ? 'Chụp ảnh nguyên bản' : mode === 'book' ? 'Mở sách phẳng – mỗi ảnh tách thành 2 trang' : (autoOn ? 'Giữ yên máy để tự chụp' : 'Căn tài liệu trong khung hình');
   }
   function setMode(m) {
     if (m === mode) return;
@@ -92,52 +95,96 @@ async function openCamera(opts = {}) {
   }
   const small = IP.canvas(10, 10);
   const sctx = small.getContext('2d', { willReadFrequently: true });
-  function tick() {
+  function drawQuad() {
     const vw = video.videoWidth, vh = video.videoHeight;
     const cw = cam.clientWidth, ch = cam.clientHeight, dpr = window.devicePixelRatio || 1;
     if (ov.width !== Math.round(cw * dpr)) { ov.width = Math.round(cw * dpr); ov.height = Math.round(ch * dpr); }
     const g = ov.getContext('2d');
     g.clearRect(0, 0, ov.width, ov.height);
-    if (!vw || mode === 'photo' || busy) return;
-    const sc = 320 / Math.max(vw, vh);
-    small.width = Math.round(vw * sc); small.height = Math.round(vh * sc);
-    sctx.drawImage(video, 0, 0, small.width, small.height);
-    let q = IP.detectInData(sctx.getImageData(0, 0, small.width, small.height));
-    if (!q) { stable = 0; lastQ = null; if (autoOn && mode !== 'id') hint.textContent = 'Không thấy mép giấy – đặt giấy trên nền tối'; return; }
-    q = q.map((p) => [p[0] / sc, p[1] / sc]);
+    if (!shownQ || !vw || mode === 'photo') return;
     const s = Math.max(cw / vw, ch / vh), ox = (cw - vw * s) / 2, oy = (ch - vh * s) / 2;
     g.save(); g.scale(dpr, dpr);
     g.beginPath();
-    q.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, p[0] * s + ox, p[1] * s + oy));
+    shownQ.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, p[0] * s + ox, p[1] * s + oy));
     g.closePath();
-    g.fillStyle = 'rgba(18,160,124,.18)'; g.fill();
-    g.lineWidth = 3; g.strokeStyle = '#19d3a2'; g.stroke();
+    const ready = stable >= 2 && sharpOK;
+    g.fillStyle = ready ? 'rgba(18,160,124,.28)' : 'rgba(18,160,124,.14)'; g.fill();
+    g.lineWidth = ready ? 4 : 3; g.strokeStyle = ready ? '#19d3a2' : 'rgba(25,211,162,.8)'; g.stroke();
+    if (mode === 'book') { // đường gáy sách
+      const t = shownQ[0], u = shownQ[1], v = shownQ[2], w2 = shownQ[3];
+      g.setLineDash([8, 6]); g.beginPath();
+      g.moveTo(((t[0] + u[0]) / 2) * s + ox, ((t[1] + u[1]) / 2) * s + oy); g.lineTo(((w2[0] + v[0]) / 2) * s + ox, ((w2[1] + v[1]) / 2) * s + oy); g.stroke();
+    }
     g.restore();
-    if (lastQ) {
-      const mv = Math.max(...q.map((p, i) => Math.hypot(p[0] - lastQ[i][0], p[1] - lastQ[i][1]))) / Math.max(vw, vh);
-      stable = mv < 0.02 ? stable + 1 : 0;
+  }
+  /* làm mượt khung hiển thị: nội suy về vị trí mới */
+  function smooth(q) {
+    if (!shownQ) { shownQ = q.map((p) => p.slice()); return; }
+    shownQ = shownQ.map((p, i) => [p[0] + (q[i][0] - p[0]) * 0.6, p[1] + (q[i][1] - p[1]) * 0.6]);
+  }
+  function tick() {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    drawQuad();
+    if (!vw || mode === 'photo' || busy || detBusy) return;
+    const sc = 320 / Math.max(vw, vh);
+    small.width = Math.round(vw * sc); small.height = Math.round(vh * sc);
+    sctx.drawImage(video, 0, 0, small.width, small.height);
+    const id = sctx.getImageData(0, 0, small.width, small.height);
+    sharpOK = IPC.sharpness(id.data, id.width, id.height) > BLUR_LIMIT * 0.6;
+    detBusy = true;
+    IP.detectAsync(id).then((q) => {
+      detBusy = false;
+      if (closed || busy) return;
+      if (!q) {
+        stable = 0; lastQ = null; shownQ = null; capQ = null;
+        if (autoOn && mode !== 'id') hint.textContent = 'Chưa thấy mép giấy – đưa cả tờ giấy vào khung';
+        return;
+      }
+      q = q.map((p) => [p[0] / sc, p[1] / sc]);
+      if (lastQ) {
+        const mv = Math.max(...q.map((p, i) => Math.hypot(p[0] - lastQ[i][0], p[1] - lastQ[i][1]))) / Math.max(vw, vh);
+        stable = mv < 0.018 ? stable + 1 : 0;
+      }
+      lastQ = q; smooth(q);
+      // không tự chụp lại cùng một trang: phải đổi trang (khung thay đổi) mới chụp tiếp
+      const samePage = capQ && Math.max(...q.map((p, i) => Math.hypot(p[0] - capQ[i][0], p[1] - capQ[i][1]))) / Math.max(vw, vh) < 0.05;
+      if (autoOn && samePage) { hint.textContent = 'Đã chụp ✓ – lật sang trang tiếp theo'; return; }
+      if (autoOn && Date.now() > cool) {
+        if (!sharpOK) hint.textContent = 'Ảnh đang nhoè – giữ yên hoặc bật đèn';
+        else if (stable >= 1) hint.textContent = 'Giữ yên… ' + '●'.repeat(Math.min(4, stable));
+        if (stable >= 4 && sharpOK) { stable = 0; capture(); }
+      }
+    });
+  }
+  /* chụp ảnh độ phân giải cao nhất của cảm biến (ImageCapture), dự phòng: lấy khung hình video */
+  async function grabStill() {
+    if (S.hiRes && mode !== 'id' && window.ImageCapture && track) {
+      try {
+        const icap = new ImageCapture(track);
+        const blob = await Promise.race([icap.takePhoto(), sleep(3500).then(() => null)]);
+        if (blob && blob.size > 50000) return blob;
+      } catch (e) {}
     }
-    lastQ = q;
-    if (autoOn && Date.now() > cool) {
-      if (stable >= 1) hint.textContent = 'Giữ yên… ' + '●'.repeat(Math.min(5, stable));
-      if (stable >= 5) { stable = 0; capture(); }
-    }
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const c = IP.canvas(vw, vh);
+    c.getContext('2d').drawImage(video, 0, 0);
+    return IP.toBlob(c, 'image/jpeg', 0.94);
   }
   async function capture() {
     if (busy) return;
     if (!stream || !video.videoWidth) { return fromSystemCamera(); }
-    busy = true; cool = Date.now() + 2500;
+    busy = true; cool = Date.now() + 1500; capQ = lastQ;
     fx.style.opacity = '0.8'; setTimeout(() => (fx.style.opacity = '0'), 120);
     if (navigator.vibrate) navigator.vibrate(30);
     try {
       const vw = video.videoWidth, vh = video.videoHeight;
-      const c = IP.canvas(vw, vh);
-      c.getContext('2d').drawImage(video, 0, 0);
-      const blob = await IP.toBlob(c, 'image/jpeg', 0.93);
       const hq = mode === 'id' ? idQuad(vw, vh) : null;
-      const sc2 = Math.min(1, 2600 / Math.max(vw, vh));
+      const blob = await grabStill();
+      const sc2 = Math.min(1, origMax() / Math.max(vw, vh));
       const it = await makeItem(blob, mode, opts, hq ? () => hq.map((p) => [Math.max(0, p[0] * sc2), Math.max(0, p[1] * sc2)]) : null);
       if (closed) return;
+      // cảnh báo ảnh mờ
+      try { const bmp = await IP.load(it.orig); const sh = IP.sharpness(bmp); if (bmp.close) bmp.close(); if (sh < BLUR_LIMIT) toast('Ảnh có thể bị nhoè – nên chụp lại (giữ chắc máy, đủ sáng)', 3000); } catch (e) {}
       items.push(it);
       updateStack(); paintTop();
       if (mode === 'id' && items.length >= 2) finish();
@@ -180,7 +227,7 @@ async function openCamera(opts = {}) {
     try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
     await video.play().catch(() => {});
     paintTop();
-    timer = setInterval(tick, 300);
+    timer = setInterval(tick, 160);
   } catch (e) {
     hint.textContent = 'Không mở được camera trong app';
     cam.append(h('div', { style: { position: 'absolute', inset: '0', display: 'grid', placeItems: 'center', padding: '24px', textAlign: 'center' } },
@@ -320,6 +367,7 @@ function cropScreen(items, opts, start = 0, replace = false) {
     go(Math.min(idx, items.length - 1));
   }
   function next() {
+    items.forEach((it) => { if (it._qsig !== JSON.stringify(it.quad)) { it.deskew = undefined; it._pv = null; it._qsig = JSON.stringify(it.quad); } });
     if (IP.quadArea(cur().quad) < 100) return toast('Vùng cắt quá nhỏ');
     filterScreen(items, opts, opts.mode === 'id' ? 0 : idx);
   }
@@ -431,6 +479,8 @@ async function saveItems(items, opts, L0) {
       };
     }
     const ms = maxSideFor(), q = S.quality === 'high' ? 0.86 : 0.78;
+    // chế độ sách: mỗi ảnh tách thành trang trái + phải
+    items = items.flatMap((it) => (it.split && !it.half ? [{ ...it, half: 'L', pageId: undefined, deskew: undefined }, { ...it, half: 'R', pageId: undefined, deskew: undefined }] : [it]));
     for (let i = 0; i < items.length; i++) {
       L.set(`Đang xử lý trang ${i + 1}/${items.length}…`, i / items.length);
       await sleep(10);
@@ -439,6 +489,7 @@ async function saveItems(items, opts, L0) {
       const page = {
         id: it.pageId || uid(), docId: doc.id, orig: it.orig, quad: it.quad, filter: it.filter, rot: it.rot || 0,
         flip: !!it.flip, adj: it.adj || null, ann: it.ann || [], aspect: it.aspect || null,
+        half: it.half || null, deskew: typeof it.deskew === 'number' ? it.deskew : null,
         out: await IP.toBlob(c, 'image/jpeg', q), thumb: await IP.toBlob(IP.scaleCanvas(c, 360), 'image/jpeg', 0.72),
         w: c.width, h: c.height, text: it.text || '',
       };
