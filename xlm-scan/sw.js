@@ -1,6 +1,6 @@
 /* XLM Scan service worker – chạy offline */
-const VER = 'xlm-scan-v3.1.0';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/imgproc.js', 'js/services.js', 'js/scan.js', 'js/editor.js', 'js/app.js',
+const VER = 'xlm-scan-v3.2.0';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/ipcore.js', 'js/imgproc.js', 'js/services.js', 'js/scan.js', 'js/editor.js', 'js/app.js',
   'lib/jspdf.umd.min.js', 'lib/tesseract.min.js', 'lib/worker.min.js', 'lib/pdf-lib.min.js', 'lib/pdf.min.js', 'lib/pdf.worker.min.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VER).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
